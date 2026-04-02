@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "17641894703",
+    "project_id": "alestreak",
+    "storage_bucket": "alestreak.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:17641894703:android:7193cd47575609b937a7da",
+        "android_client_info": {
+          "package_name": "com.alestreaks.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmu6DQ4vyXazYPLJ8LSs2i0zzm8BMXaX0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

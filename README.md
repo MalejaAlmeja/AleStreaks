@@ -1,37 +1,3 @@
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-# AleStreaks
-ayuda no se que pasa ayuda
-=======
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
 # AleStreaks (Android + Firebase)
 
 This repository now contains a complete Android starter implementation for your personal Streaks-style app.
@@ -71,6 +37,20 @@ in `app/build.gradle.kts`.
 
 ---
 
+<<<<<<< ours
+=======
+
+## Firebase status in repo
+
+The Firebase Android config file is now present at:
+
+- `app/google-services.json`
+
+Configured for:
+- `project_id`: `alestreak`
+- `package_name`: `com.alestreaks.app`
+
+>>>>>>> theirs
 ## Step-by-step: connect this app to Firebase
 
 ### 1) Create Firebase project
@@ -156,6 +136,7 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 <<<<<<< ours
 <<<<<<< ours
 <<<<<<< ours
+<<<<<<< ours
 >>>>>>> theirs
 =======
 >>>>>>> theirs
@@ -176,4 +157,32 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 =======
 >>>>>>> theirs
 =======
+>>>>>>> theirs
+=======
+
+
+## Next Firebase console steps (do these now)
+
+1. **Authentication**
+   - Firebase Console → Authentication → Sign-in method
+   - Enable **Email/Password**
+
+2. **Firestore Database**
+   - Create Firestore DB (production or test mode)
+   - Use the rules in this README (or tighter rules if needed)
+
+3. **(Optional) Storage**
+   - Enable Cloud Storage only if you plan image/icon uploads
+
+4. **SHA certificates (recommended)**
+   - In Project settings → Your apps (Android), add SHA-1 and SHA-256
+   - Useful for Google Sign-In and other auth providers later
+
+5. **Run app and verify writes**
+   - Register user in app
+   - Add task and skip/done events
+   - Confirm documents appear in:
+     - `users/{uid}/tasks`
+     - `users/{uid}/taskCompletions`
+
 >>>>>>> theirs
