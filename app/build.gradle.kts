@@ -67,8 +67,8 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
-
-    implementation(platform("com.google.firebase:firebase-bom:34.1.0"))
+    implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
+>>>>>>> theirs
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
