@@ -37,9 +37,6 @@ in `app/build.gradle.kts`.
 
 ---
 
-<<<<<<< ours
-=======
-
 ## Firebase status in repo
 
 The Firebase Android config file is now present at:
@@ -50,6 +47,9 @@ Configured for:
 - `project_id`: `alestreak`
 - `package_name`: `com.alestreaks.app`
 
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
 ## Step-by-step: connect this app to Firebase
 
@@ -137,6 +137,7 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 <<<<<<< ours
 <<<<<<< ours
 <<<<<<< ours
+<<<<<<< ours
 >>>>>>> theirs
 =======
 >>>>>>> theirs
@@ -159,6 +160,8 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 =======
 >>>>>>> theirs
 =======
+=======
+>>>>>>> theirs
 
 
 ## Next Firebase console steps (do these now)
@@ -185,4 +188,7 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
      - `users/{uid}/tasks`
      - `users/{uid}/taskCompletions`
 
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
