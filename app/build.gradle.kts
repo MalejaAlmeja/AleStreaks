@@ -69,6 +69,11 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 <<<<<<< ours
 <<<<<<< ours
+<<<<<<< ours
+    implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
+>>>>>>> theirs
+=======
+
     implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
 >>>>>>> theirs
 =======

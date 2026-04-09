@@ -38,6 +38,10 @@ in `app/build.gradle.kts`.
 ---
 
 <<<<<<< ours
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
 =======
 
 >>>>>>> theirs
@@ -53,6 +57,9 @@ Configured for:
 
 <<<<<<< ours
 <<<<<<< ours
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
 =======
 >>>>>>> theirs
@@ -146,6 +153,7 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 <<<<<<< ours
 <<<<<<< ours
 <<<<<<< ours
+<<<<<<< ours
 >>>>>>> theirs
 =======
 >>>>>>> theirs
@@ -168,6 +176,8 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 =======
 >>>>>>> theirs
 =======
+=======
+>>>>>>> theirs
 =======
 >>>>>>> theirs
 =======
@@ -200,10 +210,13 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 
 <<<<<<< ours
 <<<<<<< ours
+<<<<<<< ours
 >>>>>>> theirs
 =======
 >>>>>>> theirs
 =======
+=======
+>>>>>>> theirs
 
 
 ## Run and test checklist (after Firebase is configured)
@@ -258,4 +271,23 @@ git rm -r --cached .gradle 2>/dev/null || true
 git add .gitignore
 git add -A
 ```
+<<<<<<< ours
+>>>>>>> theirs
+=======
+
+
+## Why `app/build` does not exist yet
+
+`app/build/` is generated only **after** you run a Gradle build (for example `./gradlew assembleDebug`).
+So it is normal to not see that folder in a fresh clone.
+
+## About `./gradlew` in this repo
+
+This repo now includes `gradlew` and `gradlew.bat` launcher scripts so you can run:
+
+```bash
+./gradlew assembleDebug
+```
+
+If your machine has no `gradle` installed globally, use Android Studio (it can manage Gradle for you) or install Gradle first.
 >>>>>>> theirs
