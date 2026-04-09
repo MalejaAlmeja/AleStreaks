@@ -1,0 +1,20 @@
+# Gradle
+.gradle/
+**/build/
+
+# Android / IntelliJ
+.idea/
+*.iml
+local.properties
+captures/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Signing
+*.jks
+*.keystore
+
+# Firebase local overrides
+app/google-services.json.bak

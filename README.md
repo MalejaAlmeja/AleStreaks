@@ -37,6 +37,10 @@ in `app/build.gradle.kts`.
 
 ---
 
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
 ## Firebase status in repo
 
 The Firebase Android config file is now present at:
@@ -48,6 +52,9 @@ Configured for:
 - `package_name`: `com.alestreaks.app`
 
 <<<<<<< ours
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
 =======
 >>>>>>> theirs
@@ -138,6 +145,7 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 <<<<<<< ours
 <<<<<<< ours
 <<<<<<< ours
+<<<<<<< ours
 >>>>>>> theirs
 =======
 >>>>>>> theirs
@@ -160,6 +168,8 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
 =======
 >>>>>>> theirs
 =======
+=======
+>>>>>>> theirs
 =======
 >>>>>>> theirs
 
@@ -189,6 +199,63 @@ If you want real AI suggestions/reports next, you can wire a Cloud Function endp
      - `users/{uid}/taskCompletions`
 
 <<<<<<< ours
+<<<<<<< ours
 >>>>>>> theirs
 =======
+>>>>>>> theirs
+=======
+
+
+## Run and test checklist (after Firebase is configured)
+
+1. Install requirements:
+   - Android Studio (latest stable)
+   - Android SDK 35
+   - JDK 17
+2. Sync Gradle in Android Studio.
+3. Run app on emulator/device.
+4. Register/sign in with Email/Password.
+5. Add tasks and reminders.
+6. Mark Done and Skip (with reason).
+7. Click Generate report.
+8. Verify Firebase Console data:
+   - Firestore: `users/{uid}/tasks`
+   - Firestore: `users/{uid}/taskCompletions`
+
+Quick command flow:
+
+```bash
+# from repo root
+./gradlew clean
+./gradlew assembleDebug
+# optional tests
+./gradlew test
+```
+
+APK path:
+- `app/build/outputs/apk/debug/app-debug.apk`
+
+## Fix for git error: `.gradle/.../checksums.lock Permission denied`
+
+This happens because Gradle lock files were being picked up by Git and/or have restricted permissions.
+
+### One-time fix
+
+```bash
+# from repo root
+rm -rf .gradle
+chmod -R u+rw .
+```
+
+### Prevent it forever
+
+This repo now includes `.gitignore` with `.gradle/` and build artifacts ignored.
+
+If needed, refresh Git index once:
+
+```bash
+git rm -r --cached .gradle 2>/dev/null || true
+git add .gitignore
+git add -A
+```
 >>>>>>> theirs
