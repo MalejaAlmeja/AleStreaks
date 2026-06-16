@@ -149,7 +149,19 @@ private val HabitIcons = listOf(
 
 private val HabitColors = listOf("#9AB17A", "#B4D3D9", "#E9A34A", "#7FA37E", "#8A6F56")
 private val WeekDays = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+private val MonthDays = (1..31).toList()
 private val ReminderMinutes = (0..55 step 5).toList()
+
+private enum class RepeatMode { WEEKLY, MONTHLY, INTERVAL, FLEXIBLE }
+
+private data class RepeatOption(val mode: RepeatMode, val label: String)
+
+private val RepeatOptions = listOf(
+    RepeatOption(RepeatMode.WEEKLY, "Weekly"),
+    RepeatOption(RepeatMode.MONTHLY, "Monthly"),
+    RepeatOption(RepeatMode.INTERVAL, "Every few days"),
+    RepeatOption(RepeatMode.FLEXIBLE, "Flexible"),
+)
 
 @Composable
 fun AppScreen(
@@ -936,7 +948,7 @@ private fun HabitDetailPanel(
             item {
                 Surface(color = Color(0xFFF8FAF6), shape = RoundedCornerShape(8.dp)) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DetailLine(Icons.Outlined.Timeline, "Reminders", task.reminders.joinToString(", ").ifBlank { "None" })
+                        DetailLine(Icons.Outlined.Timeline, "Schedule", task.reminders.joinToString(", ").ifBlank { "None" })
                         DetailLine(Icons.Outlined.LocationOn, "Location", task.locationSummary())
                         DetailLine(Icons.Outlined.Flag, "Skipped", "${stats.skippedCount} times")
                     }
@@ -979,7 +991,10 @@ private fun NewHabitSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var title by remember { mutableStateOf("") }
+    var repeatMode by remember { mutableStateOf(RepeatMode.WEEKLY) }
     var selectedDays by remember { mutableStateOf(setOf("Mon", "Tue", "Wed", "Thu", "Fri")) }
+    var selectedMonthDay by remember { mutableStateOf(LocalDate.now().dayOfMonth) }
+    var intervalDays by remember { mutableStateOf("7") }
     var reminderTimes by remember { mutableStateOf(emptyList<String>()) }
     var showReminderPicker by remember { mutableStateOf(false) }
     var selectedIcon by remember { mutableStateOf(HabitIcons.first().key) }
@@ -1073,23 +1088,84 @@ private fun NewHabitSection(
             }
 
             item {
-                Text("Days", color = Ink, fontWeight = FontWeight.Bold)
+                Text("Repeat", color = Ink, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    items(WeekDays, key = { it }) { day ->
-                        DayChip(
-                            label = day,
-                            selected = selectedDays.contains(day),
-                            onClick = {
-                                selectedDays = selectedDays.toggleValue(day).ifEmpty { setOf(day) }
+                    items(RepeatOptions, key = { it.mode.name }) { option ->
+                        FilterChip(
+                            selected = repeatMode == option.mode,
+                            onClick = { repeatMode = option.mode },
+                            label = { Text(option.label) },
+                            shape = RoundedCornerShape(50),
+                            leadingIcon = if (repeatMode == option.mode) {
+                                { Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else {
+                                null
                             },
                         )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                when (repeatMode) {
+                    RepeatMode.WEEKLY -> {
+                        Text("Days of week", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            items(WeekDays, key = { it }) { day ->
+                                DayChip(
+                                    label = day,
+                                    selected = selectedDays.contains(day),
+                                    onClick = {
+                                        selectedDays = selectedDays.toggleValue(day).ifEmpty { setOf(day) }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    RepeatMode.MONTHLY -> {
+                        Text("Day of month", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            items(MonthDays, key = { it }) { day ->
+                                TimeChip(
+                                    label = day.toString(),
+                                    selected = selectedMonthDay == day,
+                                    onClick = { selectedMonthDay = day },
+                                )
+                            }
+                        }
+                    }
+                    RepeatMode.INTERVAL -> {
+                        OutlinedTextField(
+                            value = intervalDays,
+                            onValueChange = { intervalDays = it.filter(Char::isDigit).take(3) },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Repeat every N days") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = authFieldColors(),
+                        )
+                    }
+                    RepeatMode.FLEXIBLE -> {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color(0xFFF8FAF6),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Line),
+                        ) {
+                            Text(
+                                "No fixed calendar. The habit can still use location and optional reminder times.",
+                                modifier = Modifier.padding(14.dp),
+                                color = MutedInk,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
                     }
                 }
             }
 
             item {
-                Text("Reminders", color = Ink, fontWeight = FontWeight.Bold)
+                Text("Reminder times", color = Ink, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     items(reminderTimes, key = { it }) { time ->
@@ -1197,7 +1273,13 @@ private fun NewHabitSection(
             item {
                 Button(
                     onClick = {
-                        val cleanReminders = buildReminderLabels(selectedDays, reminderTimes.toSet())
+                        val scheduleLabel = buildScheduleLabel(
+                            repeatMode = repeatMode,
+                            selectedDays = selectedDays,
+                            selectedMonthDay = selectedMonthDay,
+                            intervalDays = intervalDays,
+                        )
+                        val cleanReminders = buildReminderLabels(scheduleLabel, reminderTimes.toSet())
                         if (title.isNotBlank()) {
                             onAddTask(
                                 title.trim(),
@@ -1416,17 +1498,22 @@ private fun GoogleMapPickerDialog(
     onLocationSelected: (Double, Double) -> Unit,
 ) {
     val context = LocalContext.current
+    val mapsApiKeyConfigured = remember(context) { hasGoogleMapsApiKey(context) }
     val mapView = remember { MapView(context) }
     var selectedPoint by remember { mutableStateOf(LatLng(initialLatitude, initialLongitude)) }
 
     DisposableEffect(mapView) {
-        mapView.onCreate(null)
-        mapView.onStart()
-        mapView.onResume()
+        if (mapsApiKeyConfigured) {
+            mapView.onCreate(null)
+            mapView.onStart()
+            mapView.onResume()
+        }
         onDispose {
-            mapView.onPause()
-            mapView.onStop()
-            mapView.onDestroy()
+            if (mapsApiKeyConfigured) {
+                mapView.onPause()
+                mapView.onStop()
+                mapView.onDestroy()
+            }
         }
     }
 
@@ -1436,37 +1523,60 @@ private fun GoogleMapPickerDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Tap the map to choose a place. Selected: ${selectedPoint.latitude.formatCoordinate()}, ${selectedPoint.longitude.formatCoordinate()}",
+                    if (mapsApiKeyConfigured) {
+                        "Tap the map to choose a place. Selected: ${selectedPoint.latitude.formatCoordinate()}, ${selectedPoint.longitude.formatCoordinate()}"
+                    } else {
+                        "Google Maps needs MAPS_API_KEY in local.properties. Use current location for now, or add the key and sync Gradle."
+                    },
                     color = MutedInk,
                     style = MaterialTheme.typography.labelMedium,
                 )
-                AndroidView(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(8.dp)),
-                    factory = { mapView },
-                    update = { view ->
-                        view.getMapAsync { googleMap ->
-                            googleMap.uiSettings.isZoomControlsEnabled = true
-                            googleMap.uiSettings.isMyLocationButtonEnabled = false
-                            googleMap.clear()
-                            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedPoint, 14f))
-                            googleMap.addMarker(MarkerOptions().position(selectedPoint).title("Habit place"))
-                            googleMap.setOnMapClickListener { latLng ->
-                                selectedPoint = latLng
+                if (mapsApiKeyConfigured) {
+                    AndroidView(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp)),
+                        factory = { mapView },
+                        update = { view ->
+                            view.getMapAsync { googleMap ->
+                                googleMap.uiSettings.isZoomControlsEnabled = true
+                                googleMap.uiSettings.isMyLocationButtonEnabled = false
                                 googleMap.clear()
-                                googleMap.addMarker(MarkerOptions().position(latLng).title("Habit place"))
-                                googleMap.animateCamera(CameraUpdateFactory.newLatLng(latLng))
+                                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedPoint, 14f))
+                                googleMap.addMarker(MarkerOptions().position(selectedPoint).title("Habit place"))
+                                googleMap.setOnMapClickListener { latLng ->
+                                    selectedPoint = latLng
+                                    googleMap.clear()
+                                    googleMap.addMarker(MarkerOptions().position(latLng).title("Habit place"))
+                                    googleMap.animateCamera(CameraUpdateFactory.newLatLng(latLng))
+                                }
                             }
+                        },
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                        color = Color(0xFFF8FAF6),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Line),
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize().padding(18.dp)) {
+                            Text(
+                                "Map unavailable until the Google Maps API key is configured.",
+                                color = MutedInk,
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
                         }
-                    },
-                )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = { onLocationSelected(selectedPoint.latitude, selectedPoint.longitude) },
+                enabled = mapsApiKeyConfigured,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
             ) {
@@ -1835,11 +1945,31 @@ private fun Set<String>.takeMax(max: Int): Set<String> {
     return asSequence().take(max).toSet()
 }
 
-private fun buildReminderLabels(days: Set<String>, times: Set<String>): List<String> {
-    val orderedDays = WeekDays.filter { days.contains(it) }
+private fun buildScheduleLabel(
+    repeatMode: RepeatMode,
+    selectedDays: Set<String>,
+    selectedMonthDay: Int,
+    intervalDays: String,
+): String {
+    return when (repeatMode) {
+        RepeatMode.WEEKLY -> {
+            val orderedDays = WeekDays.filter { selectedDays.contains(it) }
+            if (orderedDays.isEmpty()) "Weekly" else orderedDays.joinToString("/")
+        }
+        RepeatMode.MONTHLY -> "Monthly on day ${selectedMonthDay.coerceIn(1, 31)}"
+        RepeatMode.INTERVAL -> {
+            val days = (intervalDays.toIntOrNull() ?: 1).coerceIn(1, 365)
+            if (days == 1) "Every day" else "Every $days days"
+        }
+        RepeatMode.FLEXIBLE -> "Flexible"
+    }
+}
+
+private fun buildReminderLabels(scheduleLabel: String, times: Set<String>): List<String> {
     val orderedTimes = times.sorted()
+    if (orderedTimes.isEmpty()) return listOf(scheduleLabel)
     return orderedTimes
-        .map { time -> "${orderedDays.joinToString("/")} @$time" }
+        .map { time -> "$scheduleLabel @$time" }
         .take(5)
 }
 
@@ -1870,6 +2000,17 @@ private suspend fun currentLocationOrNull(context: Context): android.location.Lo
             .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
             .await()
     }.getOrNull()
+}
+
+private fun hasGoogleMapsApiKey(context: Context): Boolean {
+    return runCatching {
+        val appInfo = context.packageManager.getApplicationInfo(
+            context.packageName,
+            PackageManager.GET_META_DATA,
+        )
+        val key = appInfo.metaData?.getString("com.google.android.geo.API_KEY")
+        !key.isNullOrBlank() && !key.startsWith("\$")
+    }.getOrDefault(false)
 }
 
 private fun parseColor(hex: String): Color {
