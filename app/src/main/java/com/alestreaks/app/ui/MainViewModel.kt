@@ -94,6 +94,8 @@ class MainViewModel(
         iconKey: String,
         colorHex: String,
         locationRadiusMeters: Int,
+        locationLatitude: Double?,
+        locationLongitude: Double?,
     ) {
         val uid = _uiState.value.userId ?: return
         viewModelScope.launch {
@@ -106,6 +108,8 @@ class MainViewModel(
                     reminders = reminders.take(5),
                     locationMode = locationMode,
                     locationRadiusMeters = locationRadiusMeters,
+                    locationLatitude = locationLatitude,
+                    locationLongitude = locationLongitude,
                 )
             }.onFailure { _uiState.value = _uiState.value.copy(error = it.message) }
         }

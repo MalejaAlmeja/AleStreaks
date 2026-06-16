@@ -7,8 +7,10 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import com.alestreaks.app.R
 
 private val LightColors = lightColorScheme(
     primary = Color(0xFF9AB17A),
@@ -25,16 +27,23 @@ private val DarkColors = darkColorScheme(
     surface = Color(0xFF2A3A33),
 )
 
+private val Nunito = FontFamily(
+    Font(R.font.nunito_variable, FontWeight.Normal),
+    Font(R.font.nunito_variable, FontWeight.SemiBold),
+    Font(R.font.nunito_variable, FontWeight.Bold),
+    Font(R.font.nunito_variable, FontWeight.Black),
+)
+
 private val AppTypography = Typography().run {
     copy(
-        headlineLarge = headlineLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
-        headlineMedium = headlineMedium.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
-        headlineSmall = headlineSmall.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
-        titleLarge = titleLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
-        titleMedium = titleMedium.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
-        bodyLarge = bodyLarge.copy(fontFamily = FontFamily.SansSerif),
-        bodyMedium = bodyMedium.copy(fontFamily = FontFamily.SansSerif),
-        labelLarge = labelLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
+        headlineLarge = headlineLarge.copy(fontFamily = Nunito, fontWeight = FontWeight.Bold),
+        headlineMedium = headlineMedium.copy(fontFamily = Nunito, fontWeight = FontWeight.Bold),
+        headlineSmall = headlineSmall.copy(fontFamily = Nunito, fontWeight = FontWeight.Bold),
+        titleLarge = titleLarge.copy(fontFamily = Nunito, fontWeight = FontWeight.SemiBold),
+        titleMedium = titleMedium.copy(fontFamily = Nunito, fontWeight = FontWeight.SemiBold),
+        bodyLarge = bodyLarge.copy(fontFamily = Nunito),
+        bodyMedium = bodyMedium.copy(fontFamily = Nunito),
+        labelLarge = labelLarge.copy(fontFamily = Nunito, fontWeight = FontWeight.SemiBold),
     )
 }
 

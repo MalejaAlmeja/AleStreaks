@@ -1,6 +1,8 @@
 package com.alestreaks.app.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,8 +17,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +43,7 @@ import androidx.compose.material.icons.outlined.LocalDrink
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.SelfImprovement
@@ -62,11 +67,14 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,12 +87,17 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alestreaks.app.model.Completion
 import com.alestreaks.app.model.CompletionStatus
 import com.alestreaks.app.model.LocationMode
 import com.alestreaks.app.model.Task
 import com.alestreaks.app.model.UserReport
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 
 private val AppBackground = Color(0xFFF2F7ED)
@@ -124,6 +137,8 @@ private val HabitIcons = listOf(
 )
 
 private val HabitColors = listOf("#9AB17A", "#B4D3D9", "#E9A34A", "#7FA37E", "#8A6F56")
+private val WeekDays = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+private val ReminderTimes = listOf("06:00", "07:30", "09:00", "12:00", "15:00", "18:00", "20:30", "22:00")
 
 @Composable
 fun AppScreen(viewModel: MainViewModel) {
@@ -144,8 +159,8 @@ fun AppScreen(viewModel: MainViewModel) {
     HomeScreen(
         tasks = tasks,
         completions = completions,
-        onAddTask = { title, reminders, locationMode, iconKey, colorHex, radius ->
-            viewModel.addTask(title, reminders, locationMode, iconKey, colorHex, radius)
+        onAddTask = { title, reminders, locationMode, iconKey, colorHex, radius, latitude, longitude ->
+            viewModel.addTask(title, reminders, locationMode, iconKey, colorHex, radius, latitude, longitude)
         },
         onDone = viewModel::markDone,
         onSkip = viewModel::skip,
@@ -170,6 +185,8 @@ private fun AuthScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .background(AppBackground)
             .padding(24.dp),
         contentAlignment = Alignment.Center,
@@ -301,7 +318,7 @@ private fun AuthScreen(
 private fun HomeScreen(
     tasks: List<Task>,
     completions: List<Completion>,
-    onAddTask: (String, List<String>, LocationMode, String, String, Int) -> Unit,
+    onAddTask: (String, List<String>, LocationMode, String, String, Int, Double?, Double?) -> Unit,
     onDone: (String) -> Unit,
     onSkip: (String, String) -> Unit,
     onGenerateReport: () -> Unit,
@@ -321,6 +338,8 @@ private fun HomeScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .background(AppBackground),
     ) {
         val compact = maxWidth < 760.dp
@@ -380,8 +399,8 @@ private fun HomeScreen(
                     )
 
                     HomeSection.New -> NewHabitSection(
-                        onAddTask = { title, reminders, mode, icon, color, radius ->
-                            onAddTask(title, reminders, mode, icon, color, radius)
+                        onAddTask = { title, reminders, mode, icon, color, radius, latitude, longitude ->
+                            onAddTask(title, reminders, mode, icon, color, radius, latitude, longitude)
                             section = HomeSection.Habits
                         },
                     )
@@ -636,73 +655,31 @@ private fun HabitsSection(
         return
     }
 
-    if (compact) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(tasks, key = { it.id }) { task ->
-                HabitCard(
-                    task = task,
-                    stats = habitStats(task, completions),
-                    selected = selectedTask?.id == task.id,
-                    compact = true,
-                    onClick = { onSelectTask(task) },
-                    onDone = { onDone(task.id) },
-                    onSkip = { onSkip(task.id) },
-                )
-            }
-            selectedTask?.let { task ->
-                item {
-                    HabitDetailPanel(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(460.dp),
-                        task = task,
-                        stats = habitStats(task, completions),
-                        completions = completions.filter { it.taskId == task.id },
-                        onDone = { onDone(task.id) },
-                        onSkip = { onSkip(task.id) },
-                    )
-                }
-            }
-        }
-        return
-    }
-
-    Row(
+    LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .weight(1.25f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(tasks, key = { it.id }) { task ->
-                HabitCard(
+        selectedTask?.let { task ->
+            item {
+                HabitDetailPanel(
+                    modifier = Modifier.fillMaxWidth(),
                     task = task,
                     stats = habitStats(task, completions),
-                    selected = selectedTask?.id == task.id,
-                    compact = false,
-                    onClick = { onSelectTask(task) },
+                    completions = completions.filter { it.taskId == task.id },
                     onDone = { onDone(task.id) },
                     onSkip = { onSkip(task.id) },
                 )
             }
         }
-
-        if (selectedTask != null) {
-            HabitDetailPanel(
-                modifier = Modifier
-                    .weight(0.85f)
-                    .fillMaxHeight(),
-                task = selectedTask,
-                stats = habitStats(selectedTask, completions),
-                completions = completions.filter { it.taskId == selectedTask.id },
-                onDone = { onDone(selectedTask.id) },
-                onSkip = { onSkip(selectedTask.id) },
+        items(tasks, key = { it.id }) { task ->
+            HabitCard(
+                task = task,
+                stats = habitStats(task, completions),
+                selected = selectedTask?.id == task.id,
+                compact = compact,
+                onClick = { onSelectTask(task) },
+                onDone = { onDone(task.id) },
+                onSkip = { onSkip(task.id) },
             )
         }
     }
@@ -859,7 +836,7 @@ private fun HabitDetailPanel(
                 Surface(color = Color(0xFFF8FAF6), shape = RoundedCornerShape(8.dp)) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         DetailLine(Icons.Outlined.Timeline, "Reminders", task.reminders.joinToString(", ").ifBlank { "None" })
-                        DetailLine(Icons.Outlined.LocationOn, "Location", "${task.locationMode} / ${task.locationRadiusMeters}m")
+                        DetailLine(Icons.Outlined.LocationOn, "Location", task.locationSummary())
                         DetailLine(Icons.Outlined.Flag, "Skipped", "${stats.skippedCount} times")
                     }
                 }
@@ -896,14 +873,34 @@ private fun HabitDetailPanel(
 
 @Composable
 private fun NewHabitSection(
-    onAddTask: (String, List<String>, LocationMode, String, String, Int) -> Unit,
+    onAddTask: (String, List<String>, LocationMode, String, String, Int, Double?, Double?) -> Unit,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var title by remember { mutableStateOf("") }
-    var reminders by remember { mutableStateOf("09:00") }
+    var selectedDays by remember { mutableStateOf(setOf("Mon", "Tue", "Wed", "Thu", "Fri")) }
+    var selectedTimes by remember { mutableStateOf(setOf("09:00")) }
     var selectedIcon by remember { mutableStateOf(HabitIcons.first().key) }
     var selectedColor by remember { mutableStateOf(HabitColors.first()) }
     var locationMode by remember { mutableStateOf(LocationMode.NONE) }
     var radius by remember { mutableStateOf("50") }
+    var locationLatitude by remember { mutableStateOf<Double?>(null) }
+    var locationLongitude by remember { mutableStateOf<Double?>(null) }
+    var locationStatus by remember { mutableStateOf<String?>(null) }
+    val locationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { permissions ->
+        if (permissions.values.any { it }) {
+            scope.launch {
+                val location = currentLocationOrNull(context)
+                locationLatitude = location?.latitude
+                locationLongitude = location?.longitude
+                locationStatus = if (location != null) "Location saved" else "Could not read location"
+            }
+        } else {
+            locationStatus = "Location permission denied"
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -973,15 +970,37 @@ private fun NewHabitSection(
             }
 
             item {
-                OutlinedTextField(
-                    value = reminders,
-                    onValueChange = { reminders = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Reminders, max 5") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = authFieldColors(),
-                )
+                Text("Days", color = Ink, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    items(WeekDays, key = { it }) { day ->
+                        DayChip(
+                            label = day,
+                            selected = selectedDays.contains(day),
+                            onClick = {
+                                selectedDays = selectedDays.toggleValue(day).ifEmpty { setOf(day) }
+                            },
+                        )
+                    }
+                }
+            }
+
+            item {
+                Text("Reminder times", color = Ink, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    items(ReminderTimes, key = { it }) { time ->
+                        TimeChip(
+                            label = time,
+                            selected = selectedTimes.contains(time),
+                            onClick = {
+                                selectedTimes = selectedTimes.toggleValue(time).ifEmpty { setOf(time) }.takeMax(5)
+                            },
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Up to 5 reminders. Saved as day/time schedule.", color = MutedInk, style = MaterialTheme.typography.labelMedium)
             }
 
             item {
@@ -1013,12 +1032,51 @@ private fun NewHabitSection(
                     shape = RoundedCornerShape(8.dp),
                     colors = authFieldColors(),
                 )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = {
+                        val hasFine = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                        ) == PackageManager.PERMISSION_GRANTED
+                        val hasCoarse = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (hasFine || hasCoarse) {
+                            scope.launch {
+                                val location = currentLocationOrNull(context)
+                                locationLatitude = location?.latitude
+                                locationLongitude = location?.longitude
+                                locationStatus = if (location != null) "Location saved" else "Could not read location"
+                            }
+                        } else {
+                            locationLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                                ),
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Line),
+                ) {
+                    Icon(Icons.Outlined.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (locationLatitude != null) "Update current location" else "Use current location")
+                }
+                locationStatus?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(it, color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                }
             }
 
             item {
                 Button(
                     onClick = {
-                        val cleanReminders = reminders.split(",").map { it.trim() }.filter { it.isNotBlank() }.take(5)
+                        val cleanReminders = buildReminderLabels(selectedDays, selectedTimes)
                         if (title.isNotBlank()) {
                             onAddTask(
                                 title.trim(),
@@ -1027,6 +1085,8 @@ private fun NewHabitSection(
                                 selectedIcon,
                                 selectedColor,
                                 radius.toIntOrNull() ?: 50,
+                                locationLatitude,
+                                locationLongitude,
                             )
                             title = ""
                         }
@@ -1103,6 +1163,43 @@ private fun InsightsSection(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DayChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        shape = RoundedCornerShape(50),
+        leadingIcon = if (selected) {
+            { Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
+        } else {
+            null
+        },
+    )
+}
+
+@Composable
+private fun TimeChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(50))
+            .clickable(onClick = onClick),
+        color = if (selected) DeepLeaf else Color(0xFFF8FAF6),
+        shape = RoundedCornerShape(50),
+        border = BorderStroke(1.dp, if (selected) DeepLeaf else Line),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Outlined.Notifications, contentDescription = null, tint = if (selected) Color.White else MutedInk, modifier = Modifier.size(17.dp))
+            Text(label, color = if (selected) Color.White else Ink, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1281,6 +1378,43 @@ private fun suggestIconKey(title: String): String {
         listOf("goal", "win", "challenge", "meta", "logro").any { text.contains(it) } -> "goal"
         else -> "check_circle"
     }
+}
+
+private fun Set<String>.toggleValue(value: String): Set<String> {
+    return if (contains(value)) this - value else this + value
+}
+
+private fun Set<String>.takeMax(max: Int): Set<String> {
+    return asSequence().take(max).toSet()
+}
+
+private fun buildReminderLabels(days: Set<String>, times: Set<String>): List<String> {
+    val orderedDays = WeekDays.filter { days.contains(it) }
+    val orderedTimes = ReminderTimes.filter { times.contains(it) }
+    return orderedTimes
+        .map { time -> "${orderedDays.joinToString("/")} @$time" }
+        .take(5)
+}
+
+private fun Task.locationSummary(): String {
+    if (locationMode == LocationMode.NONE) return "Off"
+    val coordinates = if (locationLatitude != null && locationLongitude != null) {
+        "saved point"
+    } else {
+        "no point yet"
+    }
+    return "${locationMode.name.lowercase().replaceFirstChar { it.uppercase() }} / ${locationRadiusMeters}m / $coordinates"
+}
+
+private suspend fun currentLocationOrNull(context: Context): android.location.Location? {
+    val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    if (!fine && !coarse) return null
+    return runCatching {
+        LocationServices.getFusedLocationProviderClient(context)
+            .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+            .await()
+    }.getOrNull()
 }
 
 private fun parseColor(hex: String): Color {
