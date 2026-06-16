@@ -48,7 +48,6 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.SelfImprovement
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material.icons.outlined.Work
@@ -74,7 +73,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -121,7 +119,6 @@ private val Line = Color(0xFFD8E1D2)
 private val Panel = Color.White
 
 private enum class HomeSection { Habits, New, Insights, Settings }
-private enum class MenuPlacement { Side, Bottom }
 
 private data class HabitIcon(val key: String, val label: String, val icon: ImageVector)
 private data class HabitStats(
@@ -360,8 +357,6 @@ private fun HomeScreen(
     var selectedTaskId by remember(tasks) { mutableStateOf(tasks.firstOrNull()?.id) }
     var skipDialogTaskId by remember { mutableStateOf<String?>(null) }
     var skipReason by remember { mutableStateOf("") }
-    var sidebarExpanded by remember { mutableStateOf(false) }
-    var menuPlacement by remember { mutableStateOf(MenuPlacement.Side) }
     var nickname by remember { mutableStateOf("Ale") }
     var language by remember { mutableStateOf("English") }
 
@@ -377,35 +372,9 @@ private fun HomeScreen(
             .background(AppBackground),
     ) {
         val compact = maxWidth < 760.dp
-        LaunchedEffect(compact) {
-            sidebarExpanded = false
-        }
         val contentPadding = if (compact) 12.dp else 18.dp
-        val sidebarWidth = if (sidebarExpanded) 236.dp else 74.dp
-        val useBottomMenu = menuPlacement == MenuPlacement.Bottom
 
         Row(modifier = Modifier.fillMaxSize()) {
-            if (!useBottomMenu) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(sidebarWidth),
-                    color = Color(0xFFE9F0E4),
-                    shadowElevation = if (sidebarExpanded) 4.dp else 0.dp,
-                ) {
-                    AppSidebar(
-                        selected = section,
-                        expanded = sidebarExpanded,
-                        onToggleExpanded = { sidebarExpanded = !sidebarExpanded },
-                        onSelected = { section = it },
-                        onSettings = {
-                            sidebarExpanded = true
-                            section = HomeSection.Settings
-                        },
-                        onSignOut = onSignOut,
-                    )
-                }
-            }
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -428,7 +397,7 @@ private fun HomeScreen(
                             tasks = tasks,
                             completions = completions,
                             selectedTask = selectedTask,
-                            compact = compact || sidebarExpanded,
+                            compact = compact,
                             onSelectTask = { selectedTaskId = it.id },
                             onDone = onDone,
                             onSkip = { skipDialogTaskId = it },
@@ -445,7 +414,7 @@ private fun HomeScreen(
                         HomeSection.Insights -> InsightsSection(
                             tasks = tasks,
                             completions = completions,
-                            compact = compact || sidebarExpanded,
+                            compact = compact,
                             reportSummary = reportSummary,
                             onGenerateReport = onGenerateReport,
                         )
@@ -455,21 +424,18 @@ private fun HomeScreen(
                             onNicknameChange = { nickname = it },
                             language = language,
                             onLanguageChange = { language = it },
-                            menuPlacement = menuPlacement,
-                            onMenuPlacementChange = { menuPlacement = it },
                             darkTheme = darkTheme,
                             onDarkThemeChange = onDarkThemeChange,
+                            onSignOut = onSignOut,
                         )
                     }
                 }
 
-                if (useBottomMenu) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    BottomMenu(
-                        selected = section,
-                        onSelected = { section = it },
-                    )
-                }
+                Spacer(modifier = Modifier.height(12.dp))
+                BottomMenu(
+                    selected = section,
+                    onSelected = { section = it },
+                )
             }
         }
     }
@@ -507,128 +473,6 @@ private fun HomeScreen(
                 TextButton(onClick = { skipDialogTaskId = null }) { Text("Cancel") }
             },
         )
-    }
-}
-
-@Composable
-private fun AppSidebar(
-    selected: HomeSection,
-    expanded: Boolean,
-    onToggleExpanded: () -> Unit,
-    onSelected: (HomeSection) -> Unit,
-    onSettings: () -> Unit,
-    onSignOut: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = if (expanded) 14.dp else 8.dp, vertical = 14.dp),
-        horizontalAlignment = if (expanded) Alignment.Start else Alignment.CenterHorizontally,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onToggleExpanded),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = if (expanded) Arrangement.spacedBy(10.dp) else Arrangement.Center,
-        ) {
-            LogoMark(size = 44, textStyle = MaterialTheme.typography.labelLarge)
-            if (expanded) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("AleStreaks", color = Ink, fontWeight = FontWeight.Black, maxLines = 1)
-                    Text("Daily habits", color = MutedInk, style = MaterialTheme.typography.labelMedium)
-                }
-                IconButton(onClick = onToggleExpanded) {
-                    Icon(Icons.Outlined.Close, contentDescription = null, tint = Ink)
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(22.dp))
-        SidebarItem(HomeSection.Habits, selected, Icons.Outlined.Home, "Habits", expanded, onSelected)
-        SidebarItem(HomeSection.New, selected, Icons.Outlined.Add, "New", expanded, onSelected)
-        SidebarItem(HomeSection.Insights, selected, Icons.Outlined.Timeline, "Stats", expanded, onSelected)
-        Spacer(modifier = Modifier.weight(1f))
-        AccountBlock(expanded = expanded, onExpand = onToggleExpanded, onSettings = onSettings, onSignOut = onSignOut)
-    }
-}
-
-@Composable
-private fun SidebarItem(
-    section: HomeSection,
-    selected: HomeSection,
-    icon: ImageVector,
-    label: String,
-    expanded: Boolean,
-    onSelected: (HomeSection) -> Unit,
-) {
-    val active = selected == section
-    val background = if (active) Panel else Color.Transparent
-    val tint = if (active) DeepLeaf else MutedInk
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(background)
-            .clickable { onSelected(section) }
-            .padding(horizontal = if (expanded) 12.dp else 0.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = if (expanded) Arrangement.spacedBy(12.dp) else Arrangement.Center,
-    ) {
-        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
-        if (expanded) {
-            Text(label, color = tint, fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold)
-        }
-    }
-    Spacer(modifier = Modifier.height(8.dp))
-}
-
-@Composable
-private fun AccountBlock(
-    expanded: Boolean,
-    onExpand: () -> Unit,
-    onSettings: () -> Unit,
-    onSignOut: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = if (expanded) Panel else Color.Transparent,
-        shape = RoundedCornerShape(8.dp),
-        border = if (expanded) BorderStroke(1.dp, Line) else null,
-    ) {
-        if (expanded) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.Outlined.AccountCircle, contentDescription = null, tint = DeepLeaf)
-                    Column {
-                        Text("Account", color = Ink, fontWeight = FontWeight.Bold)
-                        Text("Signed in", color = MutedInk, style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-                OutlinedButton(
-                    onClick = onSettings,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Line),
-                ) {
-                    Icon(Icons.Outlined.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Settings", color = Ink)
-                }
-                OutlinedButton(
-                    onClick = onSignOut,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Line),
-                ) {
-                    Text("Sign out", color = Ink)
-                }
-            }
-        } else {
-            IconButton(onClick = onExpand, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.AccountCircle, contentDescription = null, tint = MutedInk)
-            }
-        }
     }
 }
 
@@ -1400,10 +1244,9 @@ private fun SettingsSection(
     onNicknameChange: (String) -> Unit,
     language: String,
     onLanguageChange: (String) -> Unit,
-    menuPlacement: MenuPlacement,
-    onMenuPlacementChange: (MenuPlacement) -> Unit,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
+    onSignOut: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -1433,6 +1276,28 @@ private fun SettingsSection(
             }
 
             item {
+                SettingsGroup(title = "Session") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Signed in", color = Ink, fontWeight = FontWeight.Bold)
+                            Text("Manage your account session.", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                        }
+                        OutlinedButton(
+                            onClick = onSignOut,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Line),
+                        ) {
+                            Text("Sign out", color = Ink)
+                        }
+                    }
+                }
+            }
+
+            item {
                 SettingsGroup(title = "Language") {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(listOf("English", "Español"), key = { it }) { option ->
@@ -1442,25 +1307,6 @@ private fun SettingsSection(
                                 label = { Text(option) },
                             )
                         }
-                    }
-                }
-            }
-
-            item {
-                SettingsGroup(title = "Menu position") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        PlacementButton(
-                            label = "Side",
-                            selected = menuPlacement == MenuPlacement.Side,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onMenuPlacementChange(MenuPlacement.Side) },
-                        )
-                        PlacementButton(
-                            label = "Bottom",
-                            selected = menuPlacement == MenuPlacement.Bottom,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onMenuPlacementChange(MenuPlacement.Bottom) },
-                        )
                     }
                 }
             }
@@ -1669,22 +1515,6 @@ private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
             Text(title, color = Ink, fontWeight = FontWeight.Black)
             content()
         }
-    }
-}
-
-@Composable
-private fun PlacementButton(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(48.dp),
-        shape = RoundedCornerShape(8.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) DeepLeaf else Color(0xFFF8FAF6),
-            contentColor = if (selected) Color.White else Ink,
-        ),
-        border = BorderStroke(1.dp, if (selected) DeepLeaf else Line),
-    ) {
-        Text(label, fontWeight = FontWeight.Bold)
     }
 }
 
