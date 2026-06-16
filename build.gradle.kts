@@ -3,3 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.android") version "1.9.24" apply false
     id("com.google.gms.google-services") version "4.4.4" apply false
 }
+
+allprojects {
+    if (tasks.findByName("prepareKotlinBuildScriptModel") == null) {
+        tasks.register("prepareKotlinBuildScriptModel") {
+            group = "build setup"
+            description = "Compatibility task for Android Studio Kotlin DSL sync."
+        }
+    }
+}
