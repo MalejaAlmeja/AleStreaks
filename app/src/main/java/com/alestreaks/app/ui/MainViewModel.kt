@@ -1,5 +1,6 @@
 package com.alestreaks.app.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alestreaks.app.data.AuthRepository
@@ -60,6 +61,21 @@ class MainViewModel(
             }.onFailure {
                 _uiState.value = _uiState.value.copy(error = it.message)
             }
+            _uiState.value = _uiState.value.copy(loading = false)
+        }
+    }
+
+    fun signInWithGoogle(context: Context) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(loading = true)
+            authRepository.signInWithGoogle(context)
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(userId = it, error = null)
+                    refreshStreams()
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(error = it.message)
+                }
             _uiState.value = _uiState.value.copy(loading = false)
         }
     }
