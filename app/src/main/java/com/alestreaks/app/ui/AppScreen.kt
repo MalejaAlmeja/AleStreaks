@@ -72,7 +72,6 @@ import androidx.compose.material3.TextButton
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,7 +83,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -99,10 +97,6 @@ import com.alestreaks.app.model.Task
 import com.alestreaks.app.model.UserReport
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.MapView
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
@@ -848,7 +842,6 @@ private fun NewHabitSection(
     var locationLatitude by remember { mutableStateOf<Double?>(null) }
     var locationLongitude by remember { mutableStateOf<Double?>(null) }
     var locationStatus by remember { mutableStateOf<String?>(null) }
-    var showMapPicker by remember { mutableStateOf(false) }
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
     ) { permissions ->
@@ -1097,17 +1090,6 @@ private fun NewHabitSection(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (locationLatitude != null) "Update current location" else "Use current location")
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { showMapPicker = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Line),
-                ) {
-                    Icon(Icons.Outlined.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Choose on map")
-                }
                 locationStatus?.let {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(it, color = MutedInk, style = MaterialTheme.typography.labelMedium)
@@ -1150,19 +1132,6 @@ private fun NewHabitSection(
         }
     }
 
-    if (showMapPicker) {
-        GoogleMapPickerDialog(
-            initialLatitude = locationLatitude ?: 4.7110,
-            initialLongitude = locationLongitude ?: -74.0721,
-            onDismiss = { showMapPicker = false },
-            onLocationSelected = { latitude, longitude ->
-                locationLatitude = latitude
-                locationLongitude = longitude
-                locationStatus = "Map point saved"
-                showMapPicker = false
-            },
-        )
-    }
     if (showReminderPicker) {
         ReminderTimeDialog(
             existingTimes = reminderTimes.toSet(),
@@ -1334,105 +1303,6 @@ private fun SettingsSection(
             }
         }
     }
-}
-
-@Composable
-private fun GoogleMapPickerDialog(
-    initialLatitude: Double,
-    initialLongitude: Double,
-    onDismiss: () -> Unit,
-    onLocationSelected: (Double, Double) -> Unit,
-) {
-    val context = LocalContext.current
-    val mapsApiKeyConfigured = remember(context) { hasGoogleMapsApiKey(context) }
-    val mapView = remember { MapView(context) }
-    var selectedPoint by remember { mutableStateOf(LatLng(initialLatitude, initialLongitude)) }
-
-    DisposableEffect(mapView) {
-        if (mapsApiKeyConfigured) {
-            mapView.onCreate(null)
-            mapView.onStart()
-            mapView.onResume()
-        }
-        onDispose {
-            if (mapsApiKeyConfigured) {
-                mapView.onPause()
-                mapView.onStop()
-                mapView.onDestroy()
-            }
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Choose place") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    if (mapsApiKeyConfigured) {
-                        "Tap the map to choose a place. Selected: ${selectedPoint.latitude.formatCoordinate()}, ${selectedPoint.longitude.formatCoordinate()}"
-                    } else {
-                        "Google Maps needs MAPS_API_KEY in local.properties. Use current location for now, or add the key and sync Gradle."
-                    },
-                    color = MutedInk,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                if (mapsApiKeyConfigured) {
-                    AndroidView(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(8.dp)),
-                        factory = { mapView },
-                        update = { view ->
-                            view.getMapAsync { googleMap ->
-                                googleMap.uiSettings.isZoomControlsEnabled = true
-                                googleMap.uiSettings.isMyLocationButtonEnabled = false
-                                googleMap.clear()
-                                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedPoint, 14f))
-                                googleMap.addMarker(MarkerOptions().position(selectedPoint).title("Habit place"))
-                                googleMap.setOnMapClickListener { latLng ->
-                                    selectedPoint = latLng
-                                    googleMap.clear()
-                                    googleMap.addMarker(MarkerOptions().position(latLng).title("Habit place"))
-                                    googleMap.animateCamera(CameraUpdateFactory.newLatLng(latLng))
-                                }
-                            }
-                        },
-                    )
-                } else {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                        color = Color(0xFFF8FAF6),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Line),
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize().padding(18.dp)) {
-                            Text(
-                                "Map unavailable until the Google Maps API key is configured.",
-                                color = MutedInk,
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onLocationSelected(selectedPoint.latitude, selectedPoint.longitude) },
-                enabled = mapsApiKeyConfigured,
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
-            ) {
-                Text("Save place")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
 }
 
 @Composable
@@ -1807,10 +1677,6 @@ private fun formatReminderTime(hour: Int, minute: Int): String {
     return "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
 }
 
-private fun Double.formatCoordinate(): String {
-    return "%.5f".format(this)
-}
-
 private fun Task.locationSummary(): String {
     if (locationMode == LocationMode.NONE) return "Off"
     val coordinates = if (locationLatitude != null && locationLongitude != null) {
@@ -1830,17 +1696,6 @@ private suspend fun currentLocationOrNull(context: Context): android.location.Lo
             .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
             .await()
     }.getOrNull()
-}
-
-private fun hasGoogleMapsApiKey(context: Context): Boolean {
-    return runCatching {
-        val appInfo = context.packageManager.getApplicationInfo(
-            context.packageName,
-            PackageManager.GET_META_DATA,
-        )
-        val key = appInfo.metaData?.getString("com.google.android.geo.API_KEY")
-        !key.isNullOrBlank() && !key.startsWith("\$")
-    }.getOrDefault(false)
 }
 
 private fun parseColor(hex: String): Color {
