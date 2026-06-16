@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,15 +29,22 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DirectionsRun
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocalDrink
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.SelfImprovement
 import androidx.compose.material.icons.outlined.Timeline
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.outlined.Work
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,6 +54,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
@@ -55,6 +65,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -106,6 +117,12 @@ private val HabitIcons = listOf(
     HabitIcon("fitness", "Train", Icons.Outlined.FitnessCenter),
     HabitIcon("food", "Food", Icons.Outlined.Restaurant),
     HabitIcon("mind", "Mind", Icons.Outlined.SelfImprovement),
+    HabitIcon("work", "Work", Icons.Outlined.Work),
+    HabitIcon("study", "Study", Icons.Outlined.School),
+    HabitIcon("sleep", "Sleep", Icons.Outlined.WbSunny),
+    HabitIcon("music", "Music", Icons.Outlined.MusicNote),
+    HabitIcon("health", "Health", Icons.Outlined.FavoriteBorder),
+    HabitIcon("goal", "Goal", Icons.Outlined.EmojiEvents),
 )
 
 private val HabitColors = listOf("#9AB17A", "#B4D3D9", "#E9A34A", "#7FA37E", "#8A6F56")
@@ -297,42 +314,52 @@ private fun HomeScreen(
     var selectedTaskId by remember(tasks) { mutableStateOf(tasks.firstOrNull()?.id) }
     var skipDialogTaskId by remember { mutableStateOf<String?>(null) }
     var skipReason by remember { mutableStateOf("") }
+    var sidebarVisible by remember { mutableStateOf(false) }
 
     val selectedTask = tasks.firstOrNull { it.id == selectedTaskId } ?: tasks.firstOrNull()
     val totalDoneToday = tasks.count { habitStats(it, completions).doneToday }
     val totalStreak = tasks.sumOf { habitStats(it, completions).streak }
 
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBackground),
     ) {
-        AppSidebar(
-            selected = section,
-            onSelected = { section = it },
-            onSignOut = onSignOut,
-        )
+        val compact = maxWidth < 760.dp
+        LaunchedEffect(compact) {
+            sidebarVisible = !compact
+        }
+        val contentPadding = if (compact) 12.dp else 18.dp
+        val startPadding = if (!compact && sidebarVisible) 104.dp else contentPadding
 
         Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(18.dp),
+                .fillMaxSize()
+                .padding(
+                    start = startPadding,
+                    top = contentPadding,
+                    end = contentPadding,
+                    bottom = contentPadding,
+                ),
         ) {
             HeaderBar(
                 tasksCount = tasks.size,
                 doneToday = totalDoneToday,
                 totalStreak = totalStreak,
+                compact = compact,
+                sidebarVisible = sidebarVisible,
+                onToggleSidebar = { sidebarVisible = !sidebarVisible },
                 onNewHabit = { section = HomeSection.New },
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             when (section) {
                 HomeSection.Habits -> HabitsSection(
                     tasks = tasks,
                     completions = completions,
                     selectedTask = selectedTask,
+                    compact = compact,
                     onSelectTask = { selectedTaskId = it.id },
                     onDone = onDone,
                     onSkip = { skipDialogTaskId = it },
@@ -349,8 +376,28 @@ private fun HomeScreen(
                 HomeSection.Insights -> InsightsSection(
                     tasks = tasks,
                     completions = completions,
+                    compact = compact,
                     reportSummary = reportSummary,
                     onGenerateReport = onGenerateReport,
+                )
+            }
+        }
+
+        if (sidebarVisible) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(86.dp),
+                color = Color(0xFFE9F0E4),
+                shadowElevation = if (compact) 8.dp else 0.dp,
+            ) {
+                AppSidebar(
+                    selected = section,
+                    onSelected = {
+                        section = it
+                        if (compact) sidebarVisible = false
+                    },
+                    onSignOut = onSignOut,
                 )
             }
         }
@@ -446,36 +493,60 @@ private fun HeaderBar(
     tasksCount: Int,
     doneToday: Int,
     totalStreak: Int,
+    compact: Boolean,
+    sidebarVisible: Boolean,
+    onToggleSidebar: () -> Unit,
     onNewHabit: () -> Unit,
 ) {
-    Row(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        color = Panel,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, Line),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "AleStreaks",
-                color = Ink,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black,
-            )
-            Text(
-                text = "$doneToday of $tasksCount complete today",
-                color = MutedInk,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        StatPill(label = "Total streak", value = "$totalStreak")
-        Button(
-            onClick = onNewHabit,
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
-            modifier = Modifier.height(46.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Habit")
+            IconButton(onClick = onToggleSidebar) {
+                Icon(
+                    imageVector = if (sidebarVisible) Icons.Outlined.Close else Icons.Outlined.Menu,
+                    contentDescription = null,
+                    tint = Ink,
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "AleStreaks",
+                    color = Ink,
+                    style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                )
+                Text(
+                    text = "$doneToday of $tasksCount complete today",
+                    color = MutedInk,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (!compact) {
+                StatPill(label = "Total streak", value = "$totalStreak")
+            }
+            Button(
+                onClick = onNewHabit,
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
+                modifier = Modifier.height(44.dp),
+            ) {
+                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                if (!compact) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Habit")
+                }
+            }
         }
     }
 }
@@ -485,6 +556,7 @@ private fun HabitsSection(
     tasks: List<Task>,
     completions: List<Completion>,
     selectedTask: Task?,
+    compact: Boolean,
     onSelectTask: (Task) -> Unit,
     onDone: (String) -> Unit,
     onSkip: (String) -> Unit,
@@ -492,6 +564,40 @@ private fun HabitsSection(
 ) {
     if (tasks.isEmpty()) {
         EmptyHabits(onNewHabit = onNewHabit)
+        return
+    }
+
+    if (compact) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(tasks, key = { it.id }) { task ->
+                HabitCard(
+                    task = task,
+                    stats = habitStats(task, completions),
+                    selected = selectedTask?.id == task.id,
+                    compact = true,
+                    onClick = { onSelectTask(task) },
+                    onDone = { onDone(task.id) },
+                    onSkip = { onSkip(task.id) },
+                )
+            }
+            selectedTask?.let { task ->
+                item {
+                    HabitDetailPanel(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(460.dp),
+                        task = task,
+                        stats = habitStats(task, completions),
+                        completions = completions.filter { it.taskId == task.id },
+                        onDone = { onDone(task.id) },
+                        onSkip = { onSkip(task.id) },
+                    )
+                }
+            }
+        }
         return
     }
 
@@ -510,6 +616,7 @@ private fun HabitsSection(
                     task = task,
                     stats = habitStats(task, completions),
                     selected = selectedTask?.id == task.id,
+                    compact = false,
                     onClick = { onSelectTask(task) },
                     onDone = { onDone(task.id) },
                     onSkip = { onSkip(task.id) },
@@ -570,6 +677,7 @@ private fun HabitCard(
     task: Task,
     stats: HabitStats,
     selected: Boolean,
+    compact: Boolean,
     onClick: () -> Unit,
     onDone: () -> Unit,
     onSkip: () -> Unit,
@@ -584,43 +692,57 @@ private fun HabitCard(
         border = BorderStroke(1.dp, if (selected) accent else Line),
         elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 3.dp else 0.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            HabitIconBadge(iconKey = task.iconKey, color = accent, size = 52)
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(
-                    text = task.title,
-                    color = Ink,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MiniMetric("${stats.streak}d", "streak", Citrus)
-                    MiniMetric("${stats.doneCount}", "done", Leaf)
-                    if (task.reminders.isNotEmpty()) {
-                        Text(task.reminders.joinToString("  "), color = MutedInk, style = MaterialTheme.typography.labelMedium)
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                HabitIconBadge(iconKey = task.iconKey, color = accent, size = 52)
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(
+                        text = task.title,
+                        color = Ink,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        MiniMetric("${stats.streak}d", "streak", Citrus)
+                        MiniMetric("${stats.doneCount}", "done", Leaf)
                     }
                 }
             }
 
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (task.reminders.isNotEmpty()) {
+                Text(
+                    task.reminders.joinToString("  "),
+                    color = MutedInk,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
                     onClick = onDone,
                     enabled = !stats.doneToday,
+                    modifier = Modifier.weight(1f).height(if (compact) 46.dp else 42.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = if (stats.doneToday) Leaf else DeepLeaf),
                 ) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (stats.doneToday) "Done" else "Mark")
+                    Text(if (stats.doneToday) "Done" else "Mark done")
                 }
-                TextButton(onClick = onSkip) {
-                    Text("Skip", color = MutedInk)
+                OutlinedButton(
+                    onClick = onSkip,
+                    modifier = Modifier.weight(1f).height(if (compact) 46.dp else 42.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Line),
+                ) {
+                    Text("Skip", color = Ink)
                 }
             }
         }
@@ -643,51 +765,62 @@ private fun HabitDetailPanel(
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, Line),
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                HabitIconBadge(iconKey = task.iconKey, color = accent, size = 58)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(task.title, color = Ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                    Text("Today ${if (stats.doneToday) "complete" else "pending"}", color = MutedInk)
+        LazyColumn(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HabitIconBadge(iconKey = task.iconKey, color = accent, size = 58)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(task.title, color = Ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text("Today ${if (stats.doneToday) "complete" else "pending"}", color = MutedInk)
+                    }
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                BigMetric(modifier = Modifier.weight(1f), value = "${stats.streak}", label = "day streak", color = Citrus)
-                BigMetric(modifier = Modifier.weight(1f), value = "${stats.doneCount}", label = "done", color = Leaf)
-            }
-
-            Surface(color = Color(0xFFF8FAF6), shape = RoundedCornerShape(8.dp)) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    DetailLine(Icons.Outlined.Timeline, "Reminders", task.reminders.joinToString(", ").ifBlank { "None" })
-                    DetailLine(Icons.Outlined.LocationOn, "Location", "${task.locationMode} / ${task.locationRadiusMeters}m")
-                    DetailLine(Icons.Outlined.Flag, "Skipped", "${stats.skippedCount} times")
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    BigMetric(modifier = Modifier.weight(1f), value = "${stats.streak}", label = "day streak", color = Citrus)
+                    BigMetric(modifier = Modifier.weight(1f), value = "${stats.doneCount}", label = "done", color = Leaf)
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = onDone,
-                    enabled = !stats.doneToday,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
-                ) {
-                    Text(if (stats.doneToday) "Complete" else "Complete today")
-                }
-                OutlinedButton(
-                    onClick = onSkip,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Line),
-                ) {
-                    Text("Skip", color = Ink)
+            item {
+                Surface(color = Color(0xFFF8FAF6), shape = RoundedCornerShape(8.dp)) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DetailLine(Icons.Outlined.Timeline, "Reminders", task.reminders.joinToString(", ").ifBlank { "None" })
+                        DetailLine(Icons.Outlined.LocationOn, "Location", "${task.locationMode} / ${task.locationRadiusMeters}m")
+                        DetailLine(Icons.Outlined.Flag, "Skipped", "${stats.skippedCount} times")
+                    }
                 }
             }
 
-            HorizontalDivider(color = Line)
-            Text("Recent days", color = Ink, fontWeight = FontWeight.Bold)
-            CompletionTimeline(completions = completions)
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = onDone,
+                        enabled = !stats.doneToday,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
+                    ) {
+                        Text(if (stats.doneToday) "Complete" else "Complete today")
+                    }
+                    OutlinedButton(
+                        onClick = onSkip,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Line),
+                    ) {
+                        Text("Skip", color = Ink)
+                    }
+                }
+            }
+
+            item { HorizontalDivider(color = Line) }
+            item { Text("Recent days", color = Ink, fontWeight = FontWeight.Bold) }
+            item { CompletionTimeline(completions = completions) }
         }
     }
 }
@@ -728,13 +861,24 @@ private fun NewHabitSection(
                     shape = RoundedCornerShape(8.dp),
                     colors = authFieldColors(),
                 )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = { selectedIcon = suggestIconKey(title) },
+                    enabled = title.isNotBlank(),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Line),
+                ) {
+                    Icon(Icons.Outlined.SelfImprovement, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Suggest icon")
+                }
             }
 
             item {
                 Text("Icon", color = Ink, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    HabitIcons.forEach { item ->
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    items(HabitIcons, key = { it.key }) { item ->
                         IconChoice(
                             item = item,
                             selected = selectedIcon == item.key,
@@ -748,8 +892,8 @@ private fun NewHabitSection(
             item {
                 Text("Color", color = Ink, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    HabitColors.forEach { color ->
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    items(HabitColors, key = { it }) { color ->
                         ColorChoice(
                             colorHex = color,
                             selected = selectedColor == color,
@@ -774,8 +918,8 @@ private fun NewHabitSection(
             item {
                 Text("Location", color = Ink, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    listOf(LocationMode.NONE, LocationMode.ENTER, LocationMode.EXIT, LocationMode.BOTH).forEach { mode ->
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    items(listOf(LocationMode.NONE, LocationMode.ENTER, LocationMode.EXIT, LocationMode.BOTH), key = { it.name }) { mode ->
                         FilterChip(
                             selected = locationMode == mode,
                             onClick = { locationMode = mode },
@@ -835,6 +979,7 @@ private fun NewHabitSection(
 private fun InsightsSection(
     tasks: List<Task>,
     completions: List<Completion>,
+    compact: Boolean,
     reportSummary: UserReport?,
     onGenerateReport: () -> Unit,
 ) {
@@ -844,34 +989,48 @@ private fun InsightsSection(
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, Line),
     ) {
-        Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Insights", color = Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                    Text("A quick read on your current habit system.", color = MutedInk)
-                }
-                Button(
-                    onClick = onGenerateReport,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
-                ) {
-                    Text("Generate")
+        LazyColumn(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Insights", color = Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                        Text("A quick read on your current habit system.", color = MutedInk)
+                    }
+                    Button(
+                        onClick = onGenerateReport,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
+                    ) {
+                        Text("Generate")
+                    }
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                BigMetric(Modifier.weight(1f), "${tasks.size}", "habits", Leaf)
-                BigMetric(Modifier.weight(1f), "${completions.count { it.status == CompletionStatus.DONE }}", "done", Mist)
-                BigMetric(Modifier.weight(1f), "${completions.count { it.status == CompletionStatus.SKIPPED }}", "skipped", Citrus)
+            item {
+                if (compact) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        BigMetric(Modifier.fillMaxWidth(), "${tasks.size}", "habits", Leaf)
+                        BigMetric(Modifier.fillMaxWidth(), "${completions.count { it.status == CompletionStatus.DONE }}", "done", Mist)
+                        BigMetric(Modifier.fillMaxWidth(), "${completions.count { it.status == CompletionStatus.SKIPPED }}", "skipped", Citrus)
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        BigMetric(Modifier.weight(1f), "${tasks.size}", "habits", Leaf)
+                        BigMetric(Modifier.weight(1f), "${completions.count { it.status == CompletionStatus.DONE }}", "done", Mist)
+                        BigMetric(Modifier.weight(1f), "${completions.count { it.status == CompletionStatus.SKIPPED }}", "skipped", Citrus)
+                    }
+                }
             }
 
-            reportSummary?.let {
-                Surface(color = Color(0xFFF8FAF6), shape = RoundedCornerShape(8.dp)) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Report", color = Ink, fontWeight = FontWeight.Bold)
-                        Text("Done: ${it.totalDone}", color = MutedInk)
-                        Text("Skipped: ${it.totalSkipped}", color = MutedInk)
-                        Text("Top reason: ${it.topSkippedReason}", color = MutedInk)
+            item {
+                reportSummary?.let {
+                    Surface(color = Color(0xFFF8FAF6), shape = RoundedCornerShape(8.dp)) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Report", color = Ink, fontWeight = FontWeight.Bold)
+                            Text("Done: ${it.totalDone}", color = MutedInk)
+                            Text("Skipped: ${it.totalSkipped}", color = MutedInk)
+                            Text("Top reason: ${it.topSkippedReason}", color = MutedInk)
+                        }
                     }
                 }
             }
@@ -1045,7 +1204,31 @@ private fun iconFor(key: String): ImageVector = when (key) {
     "fitness" -> Icons.Outlined.FitnessCenter
     "food" -> Icons.Outlined.Restaurant
     "mind" -> Icons.Outlined.SelfImprovement
+    "work" -> Icons.Outlined.Work
+    "study" -> Icons.Outlined.School
+    "sleep" -> Icons.Outlined.WbSunny
+    "music" -> Icons.Outlined.MusicNote
+    "health" -> Icons.Outlined.FavoriteBorder
+    "goal" -> Icons.Outlined.EmojiEvents
     else -> Icons.Outlined.CheckCircle
+}
+
+private fun suggestIconKey(title: String): String {
+    val text = title.lowercase()
+    return when {
+        listOf("run", "walk", "cardio", "steps", "correr", "caminar", "pasos").any { text.contains(it) } -> "run"
+        listOf("water", "drink", "agua", "hidratar").any { text.contains(it) } -> "water"
+        listOf("read", "book", "study", "learn", "leer", "libro", "estudiar").any { text.contains(it) } -> "read"
+        listOf("gym", "lift", "train", "workout", "entrenar", "ejercicio").any { text.contains(it) } -> "fitness"
+        listOf("food", "eat", "diet", "meal", "comer", "comida").any { text.contains(it) } -> "food"
+        listOf("meditate", "mind", "breath", "journal", "meditar", "respirar").any { text.contains(it) } -> "mind"
+        listOf("work", "focus", "deep", "trabajo", "foco").any { text.contains(it) } -> "work"
+        listOf("sleep", "bed", "rest", "dormir", "descansar").any { text.contains(it) } -> "sleep"
+        listOf("music", "guitar", "piano", "música", "musica").any { text.contains(it) } -> "music"
+        listOf("health", "doctor", "medicine", "salud").any { text.contains(it) } -> "health"
+        listOf("goal", "win", "challenge", "meta", "logro").any { text.contains(it) } -> "goal"
+        else -> "check_circle"
+    }
 }
 
 private fun parseColor(hex: String): Color {
