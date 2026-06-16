@@ -8,7 +8,6 @@ import com.alestreaks.app.model.Task
 import com.alestreaks.app.model.UserReport
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -27,7 +26,7 @@ class FirestoreTaskRepository(
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
-                val tasks = snapshot.documents.mapNotNull { it.toObject<Task>()?.copy(id = it.id) }
+                val tasks = snapshot.documents.mapNotNull { it.toObject(Task::class.java)?.copy(id = it.id) }
                 trySend(tasks)
             }
         awaitClose { sub.remove() }
@@ -90,7 +89,7 @@ class FirestoreTaskRepository(
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
-                val items = snapshot.documents.mapNotNull { it.toObject<Completion>()?.copy(id = it.id) }
+                val items = snapshot.documents.mapNotNull { it.toObject(Completion::class.java)?.copy(id = it.id) }
                 trySend(items)
             }
         awaitClose { sub.remove() }
@@ -98,7 +97,7 @@ class FirestoreTaskRepository(
 
     override suspend fun buildReport(userId: String): UserReport {
         val entries = db.collection("users").document(userId).collection("taskCompletions")
-            .get().await().documents.mapNotNull { it.toObject<Completion>() }
+            .get().await().documents.mapNotNull { it.toObject(Completion::class.java) }
 
         val done = entries.count { it.status == CompletionStatus.DONE }
         val skipped = entries.count { it.status == CompletionStatus.SKIPPED }

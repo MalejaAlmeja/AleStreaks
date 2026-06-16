@@ -1,9 +1,14 @@
 @ECHO OFF
-where gradle >NUL 2>&1
-IF %ERRORLEVEL% NEQ 0 (
-  ECHO Error: Gradle is not installed on PATH.
-  ECHO Install Gradle or open the project in Android Studio and run a Gradle sync/build.
-  EXIT /B 1
+SETLOCAL
+
+SET APP_HOME=%~dp0
+SET CLASSPATH=%APP_HOME%gradle\wrapper\gradle-wrapper.jar
+
+IF DEFINED JAVA_HOME (
+  SET JAVACMD=%JAVA_HOME%\bin\java.exe
+) ELSE (
+  SET JAVACMD=java.exe
 )
 
-gradle %*
+"%JAVACMD%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*
+ENDLOCAL
