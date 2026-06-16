@@ -87,18 +87,25 @@ class MainViewModel(
         _completions.value = emptyList()
     }
 
-    fun addTask(title: String, reminders: List<String>, locationMode: LocationMode) {
+    fun addTask(
+        title: String,
+        reminders: List<String>,
+        locationMode: LocationMode,
+        iconKey: String,
+        colorHex: String,
+        locationRadiusMeters: Int,
+    ) {
         val uid = _uiState.value.userId ?: return
         viewModelScope.launch {
             runCatching {
                 taskRepository.addTask(
                     userId = uid,
                     title = title,
-                    iconKey = "check_circle",
-                    colorHex = "#9AB17A",
+                    iconKey = iconKey,
+                    colorHex = colorHex,
                     reminders = reminders.take(5),
                     locationMode = locationMode,
-                    locationRadiusMeters = 50,
+                    locationRadiusMeters = locationRadiusMeters,
                 )
             }.onFailure { _uiState.value = _uiState.value.copy(error = it.message) }
         }
