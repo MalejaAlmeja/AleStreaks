@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DirectionsRun
@@ -36,7 +37,6 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocalDrink
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Restaurant
@@ -56,8 +56,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -314,7 +312,7 @@ private fun HomeScreen(
     var selectedTaskId by remember(tasks) { mutableStateOf(tasks.firstOrNull()?.id) }
     var skipDialogTaskId by remember { mutableStateOf<String?>(null) }
     var skipReason by remember { mutableStateOf("") }
-    var sidebarVisible by remember { mutableStateOf(false) }
+    var sidebarExpanded by remember { mutableStateOf(false) }
 
     val selectedTask = tasks.firstOrNull { it.id == selectedTaskId } ?: tasks.firstOrNull()
     val totalDoneToday = tasks.count { habitStats(it, completions).doneToday }
@@ -327,78 +325,75 @@ private fun HomeScreen(
     ) {
         val compact = maxWidth < 760.dp
         LaunchedEffect(compact) {
-            sidebarVisible = !compact
+            sidebarExpanded = false
         }
         val contentPadding = if (compact) 12.dp else 18.dp
-        val startPadding = if (!compact && sidebarVisible) 104.dp else contentPadding
+        val sidebarWidth = if (sidebarExpanded) 236.dp else 74.dp
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    start = startPadding,
-                    top = contentPadding,
-                    end = contentPadding,
-                    bottom = contentPadding,
-                ),
+        Row(
+            modifier = Modifier.fillMaxSize(),
         ) {
-            HeaderBar(
-                tasksCount = tasks.size,
-                doneToday = totalDoneToday,
-                totalStreak = totalStreak,
-                compact = compact,
-                sidebarVisible = sidebarVisible,
-                onToggleSidebar = { sidebarVisible = !sidebarVisible },
-                onNewHabit = { section = HomeSection.New },
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            when (section) {
-                HomeSection.Habits -> HabitsSection(
-                    tasks = tasks,
-                    completions = completions,
-                    selectedTask = selectedTask,
-                    compact = compact,
-                    onSelectTask = { selectedTaskId = it.id },
-                    onDone = onDone,
-                    onSkip = { skipDialogTaskId = it },
-                    onNewHabit = { section = HomeSection.New },
-                )
-
-                HomeSection.New -> NewHabitSection(
-                    onAddTask = { title, reminders, mode, icon, color, radius ->
-                        onAddTask(title, reminders, mode, icon, color, radius)
-                        section = HomeSection.Habits
-                    },
-                )
-
-                HomeSection.Insights -> InsightsSection(
-                    tasks = tasks,
-                    completions = completions,
-                    compact = compact,
-                    reportSummary = reportSummary,
-                    onGenerateReport = onGenerateReport,
-                )
-            }
-        }
-
-        if (sidebarVisible) {
             Surface(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(86.dp),
+                    .width(sidebarWidth),
                 color = Color(0xFFE9F0E4),
-                shadowElevation = if (compact) 8.dp else 0.dp,
+                shadowElevation = if (sidebarExpanded) 4.dp else 0.dp,
             ) {
                 AppSidebar(
                     selected = section,
+                    expanded = sidebarExpanded,
+                    onToggleExpanded = { sidebarExpanded = !sidebarExpanded },
                     onSelected = {
                         section = it
-                        if (compact) sidebarVisible = false
                     },
                     onSignOut = onSignOut,
                 )
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(contentPadding),
+            ) {
+                HeaderBar(
+                    tasksCount = tasks.size,
+                    doneToday = totalDoneToday,
+                    totalStreak = totalStreak,
+                    compact = compact,
+                    onNewHabit = { section = HomeSection.New },
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                when (section) {
+                    HomeSection.Habits -> HabitsSection(
+                        tasks = tasks,
+                        completions = completions,
+                        selectedTask = selectedTask,
+                        compact = compact || sidebarExpanded,
+                        onSelectTask = { selectedTaskId = it.id },
+                        onDone = onDone,
+                        onSkip = { skipDialogTaskId = it },
+                        onNewHabit = { section = HomeSection.New },
+                    )
+
+                    HomeSection.New -> NewHabitSection(
+                        onAddTask = { title, reminders, mode, icon, color, radius ->
+                            onAddTask(title, reminders, mode, icon, color, radius)
+                            section = HomeSection.Habits
+                        },
+                    )
+
+                    HomeSection.Insights -> InsightsSection(
+                        tasks = tasks,
+                        completions = completions,
+                        compact = compact || sidebarExpanded,
+                        reportSummary = reportSummary,
+                        onGenerateReport = onGenerateReport,
+                    )
+                }
             }
         }
     }
@@ -442,33 +437,41 @@ private fun HomeScreen(
 @Composable
 private fun AppSidebar(
     selected: HomeSection,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
     onSelected: (HomeSection) -> Unit,
     onSignOut: () -> Unit,
 ) {
-    NavigationRail(
+    Column(
         modifier = Modifier
-            .width(86.dp)
-            .fillMaxHeight(),
-        containerColor = Color(0xFFE9F0E4),
-        header = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(modifier = Modifier.height(12.dp))
-                LogoMark(size = 48, textStyle = MaterialTheme.typography.labelLarge)
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-        },
+            .fillMaxSize()
+            .padding(horizontal = if (expanded) 14.dp else 8.dp, vertical = 14.dp),
+        horizontalAlignment = if (expanded) Alignment.Start else Alignment.CenterHorizontally,
     ) {
-        SidebarItem(HomeSection.Habits, selected, Icons.Outlined.Home, "Habits", onSelected)
-        SidebarItem(HomeSection.New, selected, Icons.Outlined.Add, "New", onSelected)
-        SidebarItem(HomeSection.Insights, selected, Icons.Outlined.Timeline, "Stats", onSelected)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleExpanded),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (expanded) Arrangement.spacedBy(10.dp) else Arrangement.Center,
+        ) {
+            LogoMark(size = 44, textStyle = MaterialTheme.typography.labelLarge)
+            if (expanded) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("AleStreaks", color = Ink, fontWeight = FontWeight.Black, maxLines = 1)
+                    Text("Daily habits", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                }
+                IconButton(onClick = onToggleExpanded) {
+                    Icon(Icons.Outlined.Close, contentDescription = null, tint = Ink)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(22.dp))
+        SidebarItem(HomeSection.Habits, selected, Icons.Outlined.Home, "Habits", expanded, onSelected)
+        SidebarItem(HomeSection.New, selected, Icons.Outlined.Add, "New", expanded, onSelected)
+        SidebarItem(HomeSection.Insights, selected, Icons.Outlined.Timeline, "Stats", expanded, onSelected)
         Spacer(modifier = Modifier.weight(1f))
-        NavigationRailItem(
-            selected = false,
-            onClick = onSignOut,
-            icon = { Icon(Icons.Outlined.Close, contentDescription = null) },
-            label = { Text("Exit") },
-        )
-        Spacer(modifier = Modifier.height(10.dp))
+        AccountBlock(expanded = expanded, onExpand = onToggleExpanded, onSignOut = onSignOut)
     }
 }
 
@@ -478,14 +481,63 @@ private fun SidebarItem(
     selected: HomeSection,
     icon: ImageVector,
     label: String,
+    expanded: Boolean,
     onSelected: (HomeSection) -> Unit,
 ) {
-    NavigationRailItem(
-        selected = selected == section,
-        onClick = { onSelected(section) },
-        icon = { Icon(icon, contentDescription = null) },
-        label = { Text(label) },
-    )
+    val active = selected == section
+    val background = if (active) Panel else Color.Transparent
+    val tint = if (active) DeepLeaf else MutedInk
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .clickable { onSelected(section) }
+            .padding(horizontal = if (expanded) 12.dp else 0.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (expanded) Arrangement.spacedBy(12.dp) else Arrangement.Center,
+    ) {
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
+        if (expanded) {
+            Text(label, color = tint, fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold)
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+}
+
+@Composable
+private fun AccountBlock(expanded: Boolean, onExpand: () -> Unit, onSignOut: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = if (expanded) Panel else Color.Transparent,
+        shape = RoundedCornerShape(8.dp),
+        border = if (expanded) BorderStroke(1.dp, Line) else null,
+    ) {
+        if (expanded) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Outlined.AccountCircle, contentDescription = null, tint = DeepLeaf)
+                    Column {
+                        Text("Account", color = Ink, fontWeight = FontWeight.Bold)
+                        Text("Signed in", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                OutlinedButton(
+                    onClick = onSignOut,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Line),
+                ) {
+                    Text("Sign out", color = Ink)
+                }
+            }
+        } else {
+            IconButton(onClick = onExpand, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.AccountCircle, contentDescription = null, tint = MutedInk)
+            }
+        }
+    }
 }
 
 @Composable
@@ -494,58 +546,75 @@ private fun HeaderBar(
     doneToday: Int,
     totalStreak: Int,
     compact: Boolean,
-    sidebarVisible: Boolean,
-    onToggleSidebar: () -> Unit,
     onNewHabit: () -> Unit,
 ) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        TodayProgressPill(
+            doneToday = doneToday,
+            tasksCount = tasksCount,
+            totalStreak = totalStreak,
+            compact = compact,
+            modifier = Modifier.weight(1f),
+        )
+        Button(
+            onClick = onNewHabit,
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
+            modifier = Modifier.height(42.dp),
+        ) {
+            if (!compact) {
+                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Habit")
+            } else {
+                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodayProgressPill(
+    doneToday: Int,
+    tasksCount: Int,
+    totalStreak: Int,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val progressText = if (tasksCount == 0) "0/0" else "$doneToday/$tasksCount"
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Panel,
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, Line),
+        modifier = modifier.height(42.dp),
+        color = Color.Transparent,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            IconButton(onClick = onToggleSidebar) {
-                Icon(
-                    imageVector = if (sidebarVisible) Icons.Outlined.Close else Icons.Outlined.Menu,
-                    contentDescription = null,
-                    tint = Ink,
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "AleStreaks",
-                    color = Ink,
-                    style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                )
-                Text(
-                    text = "$doneToday of $tasksCount complete today",
-                    color = MutedInk,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (!compact) {
-                StatPill(label = "Total streak", value = "$totalStreak")
-            }
-            Button(
-                onClick = onNewHabit,
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
-                modifier = Modifier.height(44.dp),
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Leaf.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                if (!compact) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Habit")
-                }
+                Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = DeepLeaf, modifier = Modifier.size(20.dp))
+            }
+            Text(progressText, color = Ink, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+            if (!compact) {
+                Text("today", color = MutedInk, style = MaterialTheme.typography.bodyMedium)
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .background(Line, CircleShape),
+                )
+                Icon(Icons.Outlined.Flag, contentDescription = null, tint = Citrus, modifier = Modifier.size(18.dp))
+                Text("$totalStreak", color = Ink, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -1119,23 +1188,6 @@ private fun LogoMark(size: Int, textStyle: androidx.compose.ui.text.TextStyle) {
             style = textStyle,
             fontWeight = FontWeight.Black,
         )
-    }
-}
-
-@Composable
-private fun StatPill(label: String, value: String) {
-    Surface(color = Panel, shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Line)) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(Icons.Outlined.Flag, contentDescription = null, tint = Citrus, modifier = Modifier.size(18.dp))
-            Column {
-                Text(value, color = Ink, fontWeight = FontWeight.Black)
-                Text(label, color = MutedInk, style = MaterialTheme.typography.labelSmall)
-            }
-        }
     }
 }
 
