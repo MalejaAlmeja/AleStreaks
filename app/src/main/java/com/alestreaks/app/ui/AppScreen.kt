@@ -1,14 +1,8 @@
 package com.alestreaks.app.ui
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Handler
-import android.os.Looper
-import android.webkit.JavascriptInterface
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -79,6 +73,7 @@ import androidx.compose.material3.TextButton
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,9 +101,14 @@ import com.alestreaks.app.model.Task
 import com.alestreaks.app.model.UserReport
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MarkerOptions
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
+import java.time.LocalTime
 
 private val AppBackground = Color(0xFFF2F7ED)
 private val Ink = Color(0xFF243126)
@@ -149,7 +149,7 @@ private val HabitIcons = listOf(
 
 private val HabitColors = listOf("#9AB17A", "#B4D3D9", "#E9A34A", "#7FA37E", "#8A6F56")
 private val WeekDays = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-private val ReminderTimes = listOf("06:00", "07:30", "09:00", "12:00", "15:00", "18:00", "20:30", "22:00")
+private val ReminderMinutes = (0..55 step 5).toList()
 
 @Composable
 fun AppScreen(
@@ -980,8 +980,8 @@ private fun NewHabitSection(
     val scope = rememberCoroutineScope()
     var title by remember { mutableStateOf("") }
     var selectedDays by remember { mutableStateOf(setOf("Mon", "Tue", "Wed", "Thu", "Fri")) }
-    var reminderTimes by remember { mutableStateOf(listOf("09:00")) }
-    var pendingReminderTime by remember { mutableStateOf("12:00") }
+    var reminderTimes by remember { mutableStateOf(emptyList<String>()) }
+    var showReminderPicker by remember { mutableStateOf(false) }
     var selectedIcon by remember { mutableStateOf(HabitIcons.first().key) }
     var selectedColor by remember { mutableStateOf(HabitColors.first()) }
     var locationMode by remember { mutableStateOf(LocationMode.NONE) }
@@ -1100,29 +1100,17 @@ private fun NewHabitSection(
                     }
                     item {
                         AddReminderChip(
-                            enabled = reminderTimes.size < 5 && !reminderTimes.contains(pendingReminderTime),
-                            onClick = {
-                                if (reminderTimes.size < 5 && !reminderTimes.contains(pendingReminderTime)) {
-                                    reminderTimes = (reminderTimes + pendingReminderTime).sorted()
-                                }
-                            },
+                            enabled = reminderTimes.size < 5,
+                            onClick = { showReminderPicker = true },
                         )
                     }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
-                Text("Choose time to add", color = MutedInk, style = MaterialTheme.typography.labelMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    items(ReminderTimes, key = { it }) { time ->
-                        TimeChip(
-                            label = time,
-                            selected = pendingReminderTime == time,
-                            onClick = { pendingReminderTime = time },
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Up to 5 reminders. Tap Add to save another time.", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                Text(
+                    if (reminderTimes.isEmpty()) "No reminders yet. Tap Add to choose a time." else "Up to 5 reminders. Add another when you need it.",
+                    color = MutedInk,
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
 
             item {
@@ -1237,7 +1225,7 @@ private fun NewHabitSection(
     }
 
     if (showMapPicker) {
-        MapPickerDialog(
+        GoogleMapPickerDialog(
             initialLatitude = locationLatitude ?: 4.7110,
             initialLongitude = locationLongitude ?: -74.0721,
             onDismiss = { showMapPicker = false },
@@ -1246,6 +1234,16 @@ private fun NewHabitSection(
                 locationLongitude = longitude
                 locationStatus = "Map point saved"
                 showMapPicker = false
+            },
+        )
+    }
+    if (showReminderPicker) {
+        ReminderTimeDialog(
+            existingTimes = reminderTimes.toSet(),
+            onDismiss = { showReminderPicker = false },
+            onSave = { time ->
+                reminderTimes = (reminderTimes + time).distinct().sorted().take(5)
+                showReminderPicker = false
             },
         )
     }
@@ -1410,19 +1408,25 @@ private fun SettingsSection(
     }
 }
 
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun MapPickerDialog(
+private fun GoogleMapPickerDialog(
     initialLatitude: Double,
     initialLongitude: Double,
     onDismiss: () -> Unit,
     onLocationSelected: (Double, Double) -> Unit,
 ) {
-    var selectedText by remember { mutableStateOf("Tap the map to choose a place.") }
-    val bridge = remember {
-        MapBridge { latitude, longitude ->
-            selectedText = "%.5f, %.5f".format(latitude, longitude)
-            onLocationSelected(latitude, longitude)
+    val context = LocalContext.current
+    val mapView = remember { MapView(context) }
+    var selectedPoint by remember { mutableStateOf(LatLng(initialLatitude, initialLongitude)) }
+
+    DisposableEffect(mapView) {
+        mapView.onCreate(null)
+        mapView.onStart()
+        mapView.onResume()
+        onDispose {
+            mapView.onPause()
+            mapView.onStop()
+            mapView.onDestroy()
         }
     }
 
@@ -1431,31 +1435,116 @@ private fun MapPickerDialog(
         title = { Text("Choose place") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(selectedText, color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "Tap the map to choose a place. Selected: ${selectedPoint.latitude.formatCoordinate()}, ${selectedPoint.longitude.formatCoordinate()}",
+                    color = MutedInk,
+                    style = MaterialTheme.typography.labelMedium,
+                )
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(8.dp)),
-                    factory = { context ->
-                        WebView(context).apply {
-                            webViewClient = WebViewClient()
-                            settings.javaScriptEnabled = true
-                            addJavascriptInterface(bridge, "AleStreaksMap")
-                            loadDataWithBaseURL(
-                                "https://alestreaks.local/",
-                                leafletPickerHtml(initialLatitude, initialLongitude),
-                                "text/html",
-                                "UTF-8",
-                                null,
-                            )
+                    factory = { mapView },
+                    update = { view ->
+                        view.getMapAsync { googleMap ->
+                            googleMap.uiSettings.isZoomControlsEnabled = true
+                            googleMap.uiSettings.isMyLocationButtonEnabled = false
+                            googleMap.clear()
+                            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedPoint, 14f))
+                            googleMap.addMarker(MarkerOptions().position(selectedPoint).title("Habit place"))
+                            googleMap.setOnMapClickListener { latLng ->
+                                selectedPoint = latLng
+                                googleMap.clear()
+                                googleMap.addMarker(MarkerOptions().position(latLng).title("Habit place"))
+                                googleMap.animateCamera(CameraUpdateFactory.newLatLng(latLng))
+                            }
                         }
                     },
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
+            Button(
+                onClick = { onLocationSelected(selectedPoint.latitude, selectedPoint.longitude) },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
+            ) {
+                Text("Save place")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun ReminderTimeDialog(
+    existingTimes: Set<String>,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    val now = remember { LocalTime.now() }
+    var selectedHour by remember { mutableStateOf(now.hour) }
+    var selectedMinute by remember { mutableStateOf((now.minute / 5) * 5) }
+    val selectedTime = formatReminderTime(selectedHour, selectedMinute)
+    val alreadySaved = existingTimes.contains(selectedTime)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reminder time") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Surface(
+                    color = DeepLeaf,
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        selectedTime,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Black,
+                    )
+                }
+                Text("Hour", color = Ink, fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    items((0..23).toList(), key = { it }) { hour ->
+                        TimeChip(
+                            label = hour.toString().padStart(2, '0'),
+                            selected = selectedHour == hour,
+                            onClick = { selectedHour = hour },
+                        )
+                    }
+                }
+                Text("Minutes", color = Ink, fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    items(ReminderMinutes, key = { it }) { minute ->
+                        TimeChip(
+                            label = minute.toString().padStart(2, '0'),
+                            selected = selectedMinute == minute,
+                            onClick = { selectedMinute = minute },
+                        )
+                    }
+                }
+                Text(
+                    if (alreadySaved) "This reminder is already saved." else "This time will be added to the habit.",
+                    color = MutedInk,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(selectedTime) },
+                enabled = !alreadySaved,
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = DeepLeaf),
+            ) {
+                Text("Add")
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
@@ -1748,10 +1837,18 @@ private fun Set<String>.takeMax(max: Int): Set<String> {
 
 private fun buildReminderLabels(days: Set<String>, times: Set<String>): List<String> {
     val orderedDays = WeekDays.filter { days.contains(it) }
-    val orderedTimes = ReminderTimes.filter { times.contains(it) }
+    val orderedTimes = times.sorted()
     return orderedTimes
         .map { time -> "${orderedDays.joinToString("/")} @$time" }
         .take(5)
+}
+
+private fun formatReminderTime(hour: Int, minute: Int): String {
+    return "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+}
+
+private fun Double.formatCoordinate(): String {
+    return "%.5f".format(this)
 }
 
 private fun Task.locationSummary(): String {
@@ -1774,45 +1871,6 @@ private suspend fun currentLocationOrNull(context: Context): android.location.Lo
             .await()
     }.getOrNull()
 }
-
-private class MapBridge(private val onSelected: (Double, Double) -> Unit) {
-    private val mainHandler = Handler(Looper.getMainLooper())
-
-    @JavascriptInterface
-    fun select(latitude: Double, longitude: Double) {
-        mainHandler.post { onSelected(latitude, longitude) }
-    }
-}
-
-private fun leafletPickerHtml(latitude: Double, longitude: Double): String = """
-    <!doctype html>
-    <html>
-    <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>
-        html, body, #map { height: 100%; margin: 0; padding: 0; }
-        .leaflet-container { font-family: sans-serif; }
-      </style>
-    </head>
-    <body>
-      <div id="map"></div>
-      <script>
-        var map = L.map('map').setView([$latitude, $longitude], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: 'OpenStreetMap'
-        }).addTo(map);
-        var marker = L.marker([$latitude, $longitude]).addTo(map);
-        map.on('click', function(e) {
-          marker.setLatLng(e.latlng);
-          AleStreaksMap.select(e.latlng.lat, e.latlng.lng);
-        });
-      </script>
-    </body>
-    </html>
-""".trimIndent()
 
 private fun parseColor(hex: String): Color {
     return runCatching {
