@@ -16,6 +16,8 @@ interface TaskRepository {
         reminders: List<String>,
         locationMode: LocationMode,
         locationRadiusMeters: Int,
+        locationLatitude: Double?,
+        locationLongitude: Double?,
     )
 
     suspend fun completeTask(userId: String, taskId: String)

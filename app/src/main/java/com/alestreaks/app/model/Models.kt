@@ -14,6 +14,8 @@ data class Task(
     val reminders: List<String> = emptyList(),
     val locationMode: LocationMode = LocationMode.NONE,
     val locationRadiusMeters: Int = 50,
+    val locationLatitude: Double? = null,
+    val locationLongitude: Double? = null,
     val active: Boolean = true,
     val createdAt: Timestamp? = null,
 )

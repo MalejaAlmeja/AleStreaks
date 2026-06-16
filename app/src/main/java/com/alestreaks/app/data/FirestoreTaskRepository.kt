@@ -40,6 +40,8 @@ class FirestoreTaskRepository(
         reminders: List<String>,
         locationMode: LocationMode,
         locationRadiusMeters: Int,
+        locationLatitude: Double?,
+        locationLongitude: Double?,
     ) {
         val task = Task(
             title = title,
@@ -48,6 +50,8 @@ class FirestoreTaskRepository(
             reminders = reminders.take(5),
             locationMode = locationMode,
             locationRadiusMeters = locationRadiusMeters,
+            locationLatitude = locationLatitude,
+            locationLongitude = locationLongitude,
             active = true,
             createdAt = Timestamp.now(),
         )
