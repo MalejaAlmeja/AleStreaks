@@ -1,8 +1,14 @@
 package com.alestreaks.app.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +19,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,6 +54,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.SelfImprovement
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material.icons.outlined.Work
@@ -65,6 +73,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -82,6 +91,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -110,7 +120,8 @@ private val Citrus = Color(0xFFE9A34A)
 private val Line = Color(0xFFD8E1D2)
 private val Panel = Color.White
 
-private enum class HomeSection { Habits, New, Insights }
+private enum class HomeSection { Habits, New, Insights, Settings }
+private enum class MenuPlacement { Side, Bottom }
 
 private data class HabitIcon(val key: String, val label: String, val icon: ImageVector)
 private data class HabitStats(
@@ -141,7 +152,11 @@ private val WeekDays = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 private val ReminderTimes = listOf("06:00", "07:30", "09:00", "12:00", "15:00", "18:00", "20:30", "22:00")
 
 @Composable
-fun AppScreen(viewModel: MainViewModel) {
+fun AppScreen(
+    viewModel: MainViewModel,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
     val completions by viewModel.completions.collectAsStateWithLifecycle()
@@ -167,6 +182,8 @@ fun AppScreen(viewModel: MainViewModel) {
         onGenerateReport = viewModel::generateReport,
         reportSummary = uiState.report,
         onSignOut = viewModel::signOut,
+        darkTheme = darkTheme,
+        onDarkThemeChange = onDarkThemeChange,
     )
 }
 
@@ -324,12 +341,17 @@ private fun HomeScreen(
     onGenerateReport: () -> Unit,
     reportSummary: UserReport?,
     onSignOut: () -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
 ) {
     var section by remember { mutableStateOf(HomeSection.Habits) }
     var selectedTaskId by remember(tasks) { mutableStateOf(tasks.firstOrNull()?.id) }
     var skipDialogTaskId by remember { mutableStateOf<String?>(null) }
     var skipReason by remember { mutableStateOf("") }
     var sidebarExpanded by remember { mutableStateOf(false) }
+    var menuPlacement by remember { mutableStateOf(MenuPlacement.Side) }
+    var nickname by remember { mutableStateOf("Ale") }
+    var language by remember { mutableStateOf("English") }
 
     val selectedTask = tasks.firstOrNull { it.id == selectedTaskId } ?: tasks.firstOrNull()
     val totalDoneToday = tasks.count { habitStats(it, completions).doneToday }
@@ -348,28 +370,30 @@ private fun HomeScreen(
         }
         val contentPadding = if (compact) 12.dp else 18.dp
         val sidebarWidth = if (sidebarExpanded) 236.dp else 74.dp
+        val useBottomMenu = menuPlacement == MenuPlacement.Bottom
 
-        Row(
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(sidebarWidth),
-                color = Color(0xFFE9F0E4),
-                shadowElevation = if (sidebarExpanded) 4.dp else 0.dp,
-            ) {
-                AppSidebar(
-                    selected = section,
-                    expanded = sidebarExpanded,
-                    onToggleExpanded = { sidebarExpanded = !sidebarExpanded },
-                    onSelected = {
-                        section = it
-                    },
-                    onSignOut = onSignOut,
-                )
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (!useBottomMenu) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(sidebarWidth),
+                    color = Color(0xFFE9F0E4),
+                    shadowElevation = if (sidebarExpanded) 4.dp else 0.dp,
+                ) {
+                    AppSidebar(
+                        selected = section,
+                        expanded = sidebarExpanded,
+                        onToggleExpanded = { sidebarExpanded = !sidebarExpanded },
+                        onSelected = { section = it },
+                        onSettings = {
+                            sidebarExpanded = true
+                            section = HomeSection.Settings
+                        },
+                        onSignOut = onSignOut,
+                    )
+                }
             }
-
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -386,31 +410,52 @@ private fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                when (section) {
-                    HomeSection.Habits -> HabitsSection(
-                        tasks = tasks,
-                        completions = completions,
-                        selectedTask = selectedTask,
-                        compact = compact || sidebarExpanded,
-                        onSelectTask = { selectedTaskId = it.id },
-                        onDone = onDone,
-                        onSkip = { skipDialogTaskId = it },
-                        onNewHabit = { section = HomeSection.New },
-                    )
+                Box(modifier = Modifier.weight(1f)) {
+                    when (section) {
+                        HomeSection.Habits -> HabitsSection(
+                            tasks = tasks,
+                            completions = completions,
+                            selectedTask = selectedTask,
+                            compact = compact || sidebarExpanded,
+                            onSelectTask = { selectedTaskId = it.id },
+                            onDone = onDone,
+                            onSkip = { skipDialogTaskId = it },
+                            onNewHabit = { section = HomeSection.New },
+                        )
 
-                    HomeSection.New -> NewHabitSection(
-                        onAddTask = { title, reminders, mode, icon, color, radius, latitude, longitude ->
-                            onAddTask(title, reminders, mode, icon, color, radius, latitude, longitude)
-                            section = HomeSection.Habits
-                        },
-                    )
+                        HomeSection.New -> NewHabitSection(
+                            onAddTask = { title, reminders, mode, icon, color, radius, latitude, longitude ->
+                                onAddTask(title, reminders, mode, icon, color, radius, latitude, longitude)
+                                section = HomeSection.Habits
+                            },
+                        )
 
-                    HomeSection.Insights -> InsightsSection(
-                        tasks = tasks,
-                        completions = completions,
-                        compact = compact || sidebarExpanded,
-                        reportSummary = reportSummary,
-                        onGenerateReport = onGenerateReport,
+                        HomeSection.Insights -> InsightsSection(
+                            tasks = tasks,
+                            completions = completions,
+                            compact = compact || sidebarExpanded,
+                            reportSummary = reportSummary,
+                            onGenerateReport = onGenerateReport,
+                        )
+
+                        HomeSection.Settings -> SettingsSection(
+                            nickname = nickname,
+                            onNicknameChange = { nickname = it },
+                            language = language,
+                            onLanguageChange = { language = it },
+                            menuPlacement = menuPlacement,
+                            onMenuPlacementChange = { menuPlacement = it },
+                            darkTheme = darkTheme,
+                            onDarkThemeChange = onDarkThemeChange,
+                        )
+                    }
+                }
+
+                if (useBottomMenu) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    BottomMenu(
+                        selected = section,
+                        onSelected = { section = it },
                     )
                 }
             }
@@ -459,6 +504,7 @@ private fun AppSidebar(
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     onSelected: (HomeSection) -> Unit,
+    onSettings: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     Column(
@@ -490,7 +536,7 @@ private fun AppSidebar(
         SidebarItem(HomeSection.New, selected, Icons.Outlined.Add, "New", expanded, onSelected)
         SidebarItem(HomeSection.Insights, selected, Icons.Outlined.Timeline, "Stats", expanded, onSelected)
         Spacer(modifier = Modifier.weight(1f))
-        AccountBlock(expanded = expanded, onExpand = onToggleExpanded, onSignOut = onSignOut)
+        AccountBlock(expanded = expanded, onExpand = onToggleExpanded, onSettings = onSettings, onSignOut = onSignOut)
     }
 }
 
@@ -526,7 +572,12 @@ private fun SidebarItem(
 }
 
 @Composable
-private fun AccountBlock(expanded: Boolean, onExpand: () -> Unit, onSignOut: () -> Unit) {
+private fun AccountBlock(
+    expanded: Boolean,
+    onExpand: () -> Unit,
+    onSettings: () -> Unit,
+    onSignOut: () -> Unit,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = if (expanded) Panel else Color.Transparent,
@@ -543,6 +594,16 @@ private fun AccountBlock(expanded: Boolean, onExpand: () -> Unit, onSignOut: () 
                     }
                 }
                 OutlinedButton(
+                    onClick = onSettings,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Line),
+                ) {
+                    Icon(Icons.Outlined.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Settings", color = Ink)
+                }
+                OutlinedButton(
                     onClick = onSignOut,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
@@ -556,6 +617,46 @@ private fun AccountBlock(expanded: Boolean, onExpand: () -> Unit, onSignOut: () 
                 Icon(Icons.Outlined.AccountCircle, contentDescription = null, tint = MutedInk)
             }
         }
+    }
+}
+
+@Composable
+private fun BottomMenu(selected: HomeSection, onSelected: (HomeSection) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xFFE9F0E4),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, Line),
+    ) {
+        Row(
+            modifier = Modifier.padding(6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BottomMenuItem(HomeSection.Habits, selected, Icons.Outlined.Home, onSelected)
+            BottomMenuItem(HomeSection.New, selected, Icons.Outlined.Add, onSelected)
+            BottomMenuItem(HomeSection.Insights, selected, Icons.Outlined.Timeline, onSelected)
+            BottomMenuItem(HomeSection.Settings, selected, Icons.Outlined.AccountCircle, onSelected)
+        }
+    }
+}
+
+@Composable
+private fun BottomMenuItem(
+    section: HomeSection,
+    selected: HomeSection,
+    icon: ImageVector,
+    onSelected: (HomeSection) -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (section == selected) Panel else Color.Transparent)
+            .clickable { onSelected(section) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = if (section == selected) DeepLeaf else MutedInk)
     }
 }
 
@@ -879,7 +980,8 @@ private fun NewHabitSection(
     val scope = rememberCoroutineScope()
     var title by remember { mutableStateOf("") }
     var selectedDays by remember { mutableStateOf(setOf("Mon", "Tue", "Wed", "Thu", "Fri")) }
-    var selectedTimes by remember { mutableStateOf(setOf("09:00")) }
+    var reminderTimes by remember { mutableStateOf(listOf("09:00")) }
+    var pendingReminderTime by remember { mutableStateOf("12:00") }
     var selectedIcon by remember { mutableStateOf(HabitIcons.first().key) }
     var selectedColor by remember { mutableStateOf(HabitColors.first()) }
     var locationMode by remember { mutableStateOf(LocationMode.NONE) }
@@ -887,6 +989,7 @@ private fun NewHabitSection(
     var locationLatitude by remember { mutableStateOf<Double?>(null) }
     var locationLongitude by remember { mutableStateOf<Double?>(null) }
     var locationStatus by remember { mutableStateOf<String?>(null) }
+    var showMapPicker by remember { mutableStateOf(false) }
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
     ) { permissions ->
@@ -986,21 +1089,40 @@ private fun NewHabitSection(
             }
 
             item {
-                Text("Reminder times", color = Ink, fontWeight = FontWeight.Bold)
+                Text("Reminders", color = Ink, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    items(reminderTimes, key = { it }) { time ->
+                        SavedReminderChip(
+                            label = time,
+                            onRemove = { reminderTimes = reminderTimes.filterNot { it == time } },
+                        )
+                    }
+                    item {
+                        AddReminderChip(
+                            enabled = reminderTimes.size < 5 && !reminderTimes.contains(pendingReminderTime),
+                            onClick = {
+                                if (reminderTimes.size < 5 && !reminderTimes.contains(pendingReminderTime)) {
+                                    reminderTimes = (reminderTimes + pendingReminderTime).sorted()
+                                }
+                            },
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Choose time to add", color = MutedInk, style = MaterialTheme.typography.labelMedium)
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     items(ReminderTimes, key = { it }) { time ->
                         TimeChip(
                             label = time,
-                            selected = selectedTimes.contains(time),
-                            onClick = {
-                                selectedTimes = selectedTimes.toggleValue(time).ifEmpty { setOf(time) }.takeMax(5)
-                            },
+                            selected = pendingReminderTime == time,
+                            onClick = { pendingReminderTime = time },
                         )
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Up to 5 reminders. Saved as day/time schedule.", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                Text("Up to 5 reminders. Tap Add to save another time.", color = MutedInk, style = MaterialTheme.typography.labelMedium)
             }
 
             item {
@@ -1067,6 +1189,17 @@ private fun NewHabitSection(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (locationLatitude != null) "Update current location" else "Use current location")
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { showMapPicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Line),
+                ) {
+                    Icon(Icons.Outlined.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Choose on map")
+                }
                 locationStatus?.let {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(it, color = MutedInk, style = MaterialTheme.typography.labelMedium)
@@ -1076,7 +1209,7 @@ private fun NewHabitSection(
             item {
                 Button(
                     onClick = {
-                        val cleanReminders = buildReminderLabels(selectedDays, selectedTimes)
+                        val cleanReminders = buildReminderLabels(selectedDays, reminderTimes.toSet())
                         if (title.isNotBlank()) {
                             onAddTask(
                                 title.trim(),
@@ -1101,6 +1234,20 @@ private fun NewHabitSection(
                 }
             }
         }
+    }
+
+    if (showMapPicker) {
+        MapPickerDialog(
+            initialLatitude = locationLatitude ?: 4.7110,
+            initialLongitude = locationLongitude ?: -74.0721,
+            onDismiss = { showMapPicker = false },
+            onLocationSelected = { latitude, longitude ->
+                locationLatitude = latitude
+                locationLongitude = longitude
+                locationStatus = "Map point saved"
+                showMapPicker = false
+            },
+        )
     }
 }
 
@@ -1168,6 +1315,181 @@ private fun InsightsSection(
 }
 
 @Composable
+private fun SettingsSection(
+    nickname: String,
+    onNicknameChange: (String) -> Unit,
+    language: String,
+    onLanguageChange: (String) -> Unit,
+    menuPlacement: MenuPlacement,
+    onMenuPlacementChange: (MenuPlacement) -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Panel,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, Line),
+    ) {
+        LazyColumn(
+            modifier = Modifier.padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            item {
+                Text("Account", color = Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text("Personalize how AleStreaks feels.", color = MutedInk)
+            }
+
+            item {
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = onNicknameChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Nickname") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = authFieldColors(),
+                )
+            }
+
+            item {
+                SettingsGroup(title = "Language") {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("English", "Español"), key = { it }) { option ->
+                            FilterChip(
+                                selected = language == option,
+                                onClick = { onLanguageChange(option) },
+                                label = { Text(option) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                SettingsGroup(title = "Menu position") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        PlacementButton(
+                            label = "Side",
+                            selected = menuPlacement == MenuPlacement.Side,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onMenuPlacementChange(MenuPlacement.Side) },
+                        )
+                        PlacementButton(
+                            label = "Bottom",
+                            selected = menuPlacement == MenuPlacement.Bottom,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onMenuPlacementChange(MenuPlacement.Bottom) },
+                        )
+                    }
+                }
+            }
+
+            item {
+                SettingsGroup(title = "Appearance") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column {
+                            Text(if (darkTheme) "Dark mode" else "Light mode", color = Ink, fontWeight = FontWeight.Bold)
+                            Text("Switch the app theme.", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                        }
+                        Switch(checked = darkTheme, onCheckedChange = onDarkThemeChange)
+                    }
+                }
+            }
+
+            item {
+                SettingsGroup(title = "About") {
+                    Text("AleStreaks helps you build small streaks with friendly reminders, location context, and simple stats.", color = MutedInk)
+                }
+            }
+        }
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun MapPickerDialog(
+    initialLatitude: Double,
+    initialLongitude: Double,
+    onDismiss: () -> Unit,
+    onLocationSelected: (Double, Double) -> Unit,
+) {
+    var selectedText by remember { mutableStateOf("Tap the map to choose a place.") }
+    val bridge = remember {
+        MapBridge { latitude, longitude ->
+            selectedText = "%.5f, %.5f".format(latitude, longitude)
+            onLocationSelected(latitude, longitude)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Choose place") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(selectedText, color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(8.dp)),
+                    factory = { context ->
+                        WebView(context).apply {
+                            webViewClient = WebViewClient()
+                            settings.javaScriptEnabled = true
+                            addJavascriptInterface(bridge, "AleStreaksMap")
+                            loadDataWithBaseURL(
+                                "https://alestreaks.local/",
+                                leafletPickerHtml(initialLatitude, initialLongitude),
+                                "text/html",
+                                "UTF-8",
+                                null,
+                            )
+                        }
+                    },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
+    Surface(color = Color(0xFFF8FAF6), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Line)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(title, color = Ink, fontWeight = FontWeight.Black)
+            content()
+        }
+    }
+}
+
+@Composable
+private fun PlacementButton(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(48.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) DeepLeaf else Color(0xFFF8FAF6),
+            contentColor = if (selected) Color.White else Ink,
+        ),
+        border = BorderStroke(1.dp, if (selected) DeepLeaf else Line),
+    ) {
+        Text(label, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 private fun DayChip(label: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(
         selected = selected,
@@ -1201,6 +1523,42 @@ private fun TimeChip(label: String, selected: Boolean, onClick: () -> Unit) {
             Icon(Icons.Outlined.Notifications, contentDescription = null, tint = if (selected) Color.White else MutedInk, modifier = Modifier.size(17.dp))
             Text(label, color = if (selected) Color.White else Ink, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+@Composable
+private fun SavedReminderChip(label: String, onRemove: () -> Unit) {
+    Surface(
+        modifier = Modifier.height(44.dp),
+        color = DeepLeaf,
+        shape = RoundedCornerShape(50),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 14.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Outlined.Notifications, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+            Text(label, color = Color.White, fontWeight = FontWeight.Bold)
+            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Outlined.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddReminderChip(enabled: Boolean, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.height(44.dp),
+        shape = RoundedCornerShape(50),
+        border = BorderStroke(1.dp, Line),
+    ) {
+        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text("Add")
     }
 }
 
@@ -1416,6 +1774,45 @@ private suspend fun currentLocationOrNull(context: Context): android.location.Lo
             .await()
     }.getOrNull()
 }
+
+private class MapBridge(private val onSelected: (Double, Double) -> Unit) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @JavascriptInterface
+    fun select(latitude: Double, longitude: Double) {
+        mainHandler.post { onSelected(latitude, longitude) }
+    }
+}
+
+private fun leafletPickerHtml(latitude: Double, longitude: Double): String = """
+    <!doctype html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <style>
+        html, body, #map { height: 100%; margin: 0; padding: 0; }
+        .leaflet-container { font-family: sans-serif; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        var map = L.map('map').setView([$latitude, $longitude], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: 'OpenStreetMap'
+        }).addTo(map);
+        var marker = L.marker([$latitude, $longitude]).addTo(map);
+        map.on('click', function(e) {
+          marker.setLatLng(e.latlng);
+          AleStreaksMap.select(e.latlng.lat, e.latlng.lng);
+        });
+      </script>
+    </body>
+    </html>
+""".trimIndent()
 
 private fun parseColor(hex: String): Color {
     return runCatching {
