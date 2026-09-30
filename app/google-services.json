@@ -12,7 +12,20 @@
           "package_name": "com.alestreaks.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "17641894703-flr426pf81sofg14reojdasmuf2samsc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.alestreaks.app",
+            "certificate_hash": "c779715c08ae4da4c3d5a438d7f6466b71884d00"
+          }
+        },
+        {
+          "client_id": "17641894703-a2hskk3382i2cn4nfqha5487ehgd72p5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBmu6DQ4vyXazYPLJ8LSs2i0zzm8BMXaX0"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "17641894703-a2hskk3382i2cn4nfqha5487ehgd72p5.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
